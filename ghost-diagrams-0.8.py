@@ -32,6 +32,9 @@
      Each character represents a tile edge. Letters (abcd, ABCD)
      match with their opposite case. Numbers match with themselves.
 
+     A tile specifiction can be multiplied by a number to make it
+     that much likely to be selected.
+
      A number of extra paramters can also be supplied:
 
          border : True/False : draw tile borders or not
@@ -124,7 +127,6 @@ def bezier(a,b,c,d):
             d * (u*u*u)
         )
     return result
-
 
 def normalize(form):
     best = form
@@ -273,8 +275,8 @@ class Config:
         for i in range(len(self.forms)):
             if "/" in self.forms[i]:
                 self.forms[i], self.colors[i%len(self.colors)] = self.forms[i].split("/",1)
-            if "@" in self.forms[i]:
-                self.forms[i], count = self.forms[i].split("@",1)
+            if "*" in self.forms[i]:
+                self.forms[i], count = self.forms[i].split("*",1)
                 self.probabilities[i] = int(count)
 
         if len(self.forms[0]) == 4:
@@ -390,7 +392,7 @@ def parse_config(self, text):
 
 
 # ========================================================================
-
+# Tiling processing.
 
 class Assembler:
     def __init__(self, connections, compatabilities, forms, probabilities, point_set):
@@ -667,9 +669,23 @@ class Assembler:
 
 
 # ========================================================================
+# UI
 
+
+def showException(f):
+    """Letting Python exception though to Qt crashes Python, so keep them contained."""
+
+    @functools.wraps(f)
+    def wrapper(self, *args, **kw):
+        try:
+            return f(self, *args, **kw)
+        except Exception as e:
+            QtWidgets.QErrorMessage(self.window).showMessage(str(e))
+
+    return wrapper
 
 class Canvas(QtWidgets.QFrame):
+    """UI -- a canvas that signals when repaints or resizes are triggered."""
 
     painting = QtCore.pyqtSignal(['QPainter'])
     resizing = QtCore.pyqtSignal(['QSize'])
@@ -688,10 +704,9 @@ class Canvas(QtWidgets.QFrame):
         self.resizing.emit(event.size())
 
 
-# ========================================================================
-
-
 class Interface(QtCore.QObject):
+    """Main UI of the program."""
+
     def __init__(self):
         QtCore.QObject.__init__(self)
         self.iteration = 0
@@ -780,32 +795,39 @@ class Interface(QtCore.QObject):
     ###################################################################
     # Event handlers.
 
-    @QtCore.pyqtSlot('QSize')
+    @showException
     def on_size(self, sz):
         self.update_size(sz)
         self.reset()
 
+    @showException
     def on_set_scale(self, value):
         self.set_scale(value)
         self.reset()
 
+    @showException
     def on_set_thickness(self, value):
         self.set_thickness(value)
         self.canvas.update()
 
+    @showException
     def on_knot_changed(self, state):
         self.knot = state
         self.reset()
 
+    @showException
     def on_reset(self, index = 0):
         self.reset(index)
 
+    @showException
     def on_new_diag(self, text):
         self.reset()
 
-    def on_random(self):
+    @showException
+    def on_random(self, value):
         self.random()
 
+    @showException
     def on_idle(self):
         if not self.assembler.iterate():
             self.timer.stop()
@@ -1182,6 +1204,10 @@ class Interface(QtCore.QObject):
         self.diag_combo.setCurrentIndex(self.diag_combo.count()-1)
         self.reset()
         self.randomizing = True
+
+
+# ========================================================================
+# Entry.
 
 
 if __name__ == '__main__':

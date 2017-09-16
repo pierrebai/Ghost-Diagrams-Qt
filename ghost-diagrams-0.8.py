@@ -381,16 +381,12 @@ def parse_config(self, text):
         'name'          : parse_text,
     }
 
-    try:
-        for c in text.split():
-            for arg, parser in parsers.items():
-                if parser(self, arg, c):
-                    break
-            else:
-                self.forms.append(c)
-    except Exception as e:
-        print(str(e))
-        QtWidgets.QErrorMessage(None).showMessage(str(e))
+    for c in text.split():
+        for arg, parser in parsers.items():
+            if parser(self, arg, c):
+                break
+        else:
+            self.forms.append(c)
 
 
 # ========================================================================
@@ -710,6 +706,7 @@ class Interface(QtCore.QObject):
         self.polys = { }
         self.assembler = None
         self.timer = None
+        self.error = None
 
         self.canvas = Canvas()
         self.canvas.painting.connect(self.on_paint)
@@ -837,10 +834,11 @@ class Interface(QtCore.QObject):
     def reset(self, index = 0):
         try:
             self.config = Config(self.diag_combo.currentText())
+            self.error = None
         except Exception as e:
-            self.config = Config("---- grid=1 background=844 foreground=f66")
-            QtWidgets.QErrorMessage(self.window).showMessage(str(e))
-            # TODO: print error in canvas instead.
+            self.config = Config("---- grid=0 background=fff foreground=f66")
+            self.error = str(e)
+            self.canvas.update()
 
         self.background = alloc_color(self.config.background)
         self.foreground = alloc_color(self.config.foreground)
@@ -855,7 +853,7 @@ class Interface(QtCore.QObject):
                 for x in range(-yr,xr):
                     point = self.pos(x*2,y*2)
                     if point.x > bound and point.x < self.width-bound and \
-                       point.y > bound and point.y < self.height-bound-90:
+                       point.y > bound and point.y < self.height-bound-30:
                         point_set[(y,x)] = True
         else:
             bound = self.scale * 3
@@ -1011,6 +1009,25 @@ class Interface(QtCore.QObject):
         self.shapes[form_number] = poly, links
         return poly, links
 
+    def setPaintColors(self, painter, edge, fill):
+        if edge:
+            pen = QtGui.QPen(edge)
+            pen.setWidth(max(1,int(self.thickness * self.config.thickness)))
+            pen.setCapStyle(QtCore.Qt.RoundCap)
+            pen.setJoinStyle(QtCore.Qt.RoundJoin)
+            painter.setPen(pen)
+        else:
+            painter.setPen(QtGui.QPen(QtCore.Qt.NoPen))
+        if fill:
+            painter.setBrush(QtGui.QBrush(fill))
+        else:
+            painter.setBrush(QtGui.QBrush(QtCore.Qt.NoBrush))
+
+    def setPaintFont(self, painter, size):
+        font = painter.font()
+        font.setPixelSize(size)
+        painter.setFont(font)
+
     def draw_poly(self, y,x,form_number, painter, erase=False):
         id = (y,x,form_number)
 
@@ -1033,33 +1050,19 @@ class Interface(QtCore.QObject):
             else:
                 color = self.colors[self.assembler.form_id[form_number] % len(self.colors)]
 
-            def setStyle(painter, edge, fill):
-                if edge:
-                    pen = QtGui.QPen(edge)
-                    pen.setWidth(max(1,int(self.thickness * self.config.thickness)))
-                    pen.setCapStyle(QtCore.Qt.RoundCap)
-                    pen.setJoinStyle(QtCore.Qt.RoundJoin)
-                    painter.setPen(pen)
-                else:
-                    painter.setPen(QtGui.QPen(QtCore.Qt.NoPen))
-                if fill:
-                    painter.setBrush(QtGui.QBrush(fill))
-                else:
-                    painter.setBrush(QtGui.QBrush(QtCore.Qt.NoBrush))
-
             if self.config.fill:
-                setStyle(painter, None, color)
+                self.setPaintColors(painter, None, color)
                 painter.drawPolygon(*val2pt(poly))
 
             if self.knot:
-                setStyle(painter, color, None)
+                self.setPaintColors(painter, color, None)
                 for link, line1, line2 in links:
                     if not erase:
-                        setStyle(painter, None, self.foreground)
+                        self.setPaintColors(painter, None, self.foreground)
                     painter.drawPolygon(*val2pt(link))
                     if not erase:
-                        setStyle(painter, None, color)
-                    setStyle(painter, color, None)
+                        self.setPaintColors(painter, None, color)
+                    self.setPaintColors(painter, color, None)
                     #painter.drawPolygon(*val2pt(link))
                     painter.drawLines(*val2pt(line1))
                     painter.drawLines(*val2pt(line2))
@@ -1068,7 +1071,7 @@ class Interface(QtCore.QObject):
 
             if self.config.border:
                 if not erase:
-                    setStyle(painter, self.foreground, None)
+                    self.setPaintColors(painter, self.foreground, None)
                 painter.drawPolygon(*val2pt(poly))
 
     @QtCore.pyqtSlot('QPainter')
@@ -1080,26 +1083,24 @@ class Interface(QtCore.QObject):
         painter.setBrush(self.background)
         painter.drawRect(0, 0, self.width, self.height)
 
-        if self.config.labels and False:
-            font = pango.FontDescription("mono bold 36")
-            painter.setPen(self.foreground)
-
+        if self.config.labels:
+            fontSize = 16
+            padding = 6
+            self.setPaintFont(painter, fontSize)
+            x = padding * 2
+            y = self.height - fontSize - padding * 3
             for i, form in enumerate(self.assembler.basic_forms):
-                layout = self.canvas.create_pango_layout(" "+form.replace(" ","-")+" ")
-                layout.set_font_description(font)
-                x = (i+1)*(len(form)+3)*30
-                y = (self.height-70)
-                width, height = layout.get_pixel_size()
-                self.pixmap.draw_rectangle(self.gc, True, x-6,y-6, width+12,height+12)
-                self.pixmap.draw_layout(self.gc, x,y, layout, self.foreground, self.colors[i])
+                alignment = QtCore.Qt.AlignLeft | QtCore.Qt.AlignTop | QtCore.Qt.TextWordWrap
+                r = painter.boundingRect(x, y, self.width - x, self.height - y, alignment, form)
+                r.adjust(-padding, -padding, padding * 2, padding * 2)
+                self.setPaintColors(painter, self.foreground, self.colors[i])
+                painter.drawRect(r)
+                alignment = QtCore.Qt.AlignCenter | QtCore.Qt.TextWordWrap
+                painter.drawText(r, alignment, form)
+                x = r.right() + padding * 2
 
         if self.config.grid:
-            pen = QtGui.QPen()
-            pen.setWidth(max(1,int(self.thickness * self.config.thickness)))
-            pen.setCapStyle(QtCore.Qt.RoundCap)
-            pen.setJoinStyle(QtCore.Qt.RoundJoin)
-            pen.setColor(alloc_color("eee"))
-            painter.setPen(pen)
+            self.setPaintColors(painter, alloc_color("eee"), None)
             f = 4.0 / len(self.config.connections)
             for (y,x) in self.assembler.point_set.keys():
                 poly = [ ]
@@ -1112,6 +1113,12 @@ class Interface(QtCore.QObject):
 
         for (y,x), form_number in self.assembler.tiles.items():
             self.draw_poly(y,x,form_number,painter)
+
+        if self.error:
+            self.setPaintColors(painter, QtGui.QColor(0,0,0), QtGui.QColor(255,240,240))
+            self.setPaintFont(painter, 24)
+            painter.drawText(0, 0, self.width, self.height, QtCore.Qt.AlignCenter | QtCore.Qt.TextWordWrap, self.error)
+
 
     def on_paint_changes(self,painter):
         changes = self.assembler.changes

@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 #    Copyright (C) 2004 Paul Harrison
+#    Copyright (C) 2017 Pierre Baillargeon
 #    This program is free software; you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
 #    the Free Software Foundation; either version 2 of the License, or
@@ -75,7 +76,9 @@
      0.8 -- Knotwork
             Don't fill all of memory
             Use psyco if available
-
+     0.9 -- Better parsing, simplified fornat, better error report,
+            support labels, use Qt instead of gtk,
+            support variable probabilities.
 
   TODO: don't backtrack areas outside current locus
         (difficulty: accidentally creating disconnected islands)
@@ -89,7 +92,7 @@ try:
 except:
     pass
 
-__version__ = '0.8'
+__version__ = '0.9'
 
 import sys, os, random, math, functools
 import PyQt5.QtCore as QtCore
@@ -256,7 +259,7 @@ class Config:
         self.width = -1
         self.height = -1
         self.grid = True
-        self.labels = False
+        self.labels = True
         self.forms = []
         self.name = ""
 
@@ -684,6 +687,7 @@ def showException(f):
 
     return wrapper
 
+
 class Canvas(QtWidgets.QFrame):
     """UI -- a canvas that signals when repaints or resizes are triggered."""
 
@@ -710,10 +714,10 @@ class Interface(QtCore.QObject):
     def __init__(self):
         QtCore.QObject.__init__(self)
         self.iteration = 0
-        self.width = 600
-        self.height = 600
-        self.scale = 6
-        self.thickness = 2
+        self.width = 1000
+        self.height = 800
+        self.scale = 8
+        self.thickness = 1
         self.knot = False
         self.randomizing = False
         self.iteration = 0
@@ -722,6 +726,8 @@ class Interface(QtCore.QObject):
         self.assembler = None
         self.timer = None
         self.error = None
+        self.labels = True
+        self.corner = 0.5
 
         self.canvas = Canvas()
         self.canvas.painting.connect(self.on_paint)
@@ -731,16 +737,31 @@ class Interface(QtCore.QObject):
         self.canvas.setLineWidth(1)
         self.canvas.setFrameStyle(Canvas.Box)
 
-        self.diag_combo = QtWidgets.QComboBox()
-        self.diag_combo.setEditable(True)
-        self.diag_combo.completer().setCaseSensitivity(QtCore.Qt.CaseSensitive)
+        tilings_label = QtWidgets.QLabel('Tilings:')
+        tilings_label.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
+        tilings_label.setObjectName('tilings_label')
+        self.tilings_combo = QtWidgets.QComboBox()
+        self.tilings_combo.setEditable(True)
+        self.tilings_combo.completer().setCaseSensitivity(QtCore.Qt.CaseSensitive)
         for item in catalogue:
-            self.diag_combo.addItem(item)
-        self.diag_combo.currentIndexChanged.connect(self.on_reset)
+            self.tilings_combo.addItem(item)
+        self.tilings_combo.currentIndexChanged.connect(self.on_reset)
+        self.tilings_combo.setObjectName('tilings_combo')
+
+        hbox = QtWidgets.QHBoxLayout()
+        hbox.setContentsMargins(0,0,0,0)
+        tilings_frame = QtWidgets.QFrame()
+        tilings_frame.setLayout(hbox)
+        hbox.addWidget(tilings_label)
+        hbox.addWidget(self.tilings_combo)
 
         knot_box = QtWidgets.QCheckBox("Draw Knot")
-        knot_box.setChecked(False)
+        knot_box.setChecked(self.knot)
         knot_box.stateChanged.connect(self.on_knot_changed)
+
+        self.labels_box = QtWidgets.QCheckBox("Show Tiling Colors")
+        self.labels_box.setChecked(self.labels)
+        self.labels_box.stateChanged.connect(self.on_labels_changed)
 
         scale_label = QtWidgets.QLabel('Size:')
         scale_label.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
@@ -749,6 +770,14 @@ class Interface(QtCore.QObject):
         scale_spin.setRange(3, 50)
         scale_spin.setValue(self.scale)
         scale_spin.valueChanged.connect(self.on_set_scale)
+
+        corner_label = QtWidgets.QLabel('Corner Radius:')
+        corner_label.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
+        corner_spin = QtWidgets.QDoubleSpinBox()
+        corner_spin.setRange(0.1, 0.9)
+        corner_spin.setSingleStep(0.1)
+        corner_spin.setValue(self.corner)
+        corner_spin.valueChanged.connect(self.on_set_corner)
 
         thickness_label = QtWidgets.QLabel('Thickness:')
         thickness_label.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
@@ -765,29 +794,45 @@ class Interface(QtCore.QObject):
         reset_button.clicked.connect(self.on_reset)
 
         hbox = QtWidgets.QHBoxLayout()
+        hbox.setContentsMargins(2,2,2,2)
         hframe = QtWidgets.QFrame()
         hframe.setLayout(hbox)
+        hbox.addStretch(3)
         hbox.addWidget(knot_box)
+        hbox.addWidget(self.labels_box)
+        hbox.addStretch(1)
         hbox.addWidget(reset_button)
         hbox.addWidget(random_button)
+        hbox.addStretch(1)
         hbox.addWidget(scale_label)
         hbox.addWidget(scale_spin)
         hbox.addWidget(thickness_label)
         hbox.addWidget(thickness_spin)
+        hbox.addWidget(corner_label)
+        hbox.addWidget(corner_spin)
+        hbox.addStretch(3)
 
         vbox = QtWidgets.QVBoxLayout()
+        vbox.setContentsMargins(4,4,4,4)
         vframe = QtWidgets.QFrame()
         vframe.setLayout(vbox)
-        vbox.addWidget(self.diag_combo)
+        vbox.addWidget(tilings_frame)
         vbox.addWidget(hframe)
         vbox.addWidget(self.canvas)
 
         self.window = QtWidgets.QWidget()
         grid = QtWidgets.QGridLayout()
+        grid.setContentsMargins(3,3,3,3)
+        self.window.setObjectName("window")
         self.window.setLayout(grid)
         self.window.setMinimumSize(600,600)
         self.window.setWindowTitle('Ghost Diagrams')
         grid.addWidget(vframe)
+
+        self.window.setStyleSheet('''
+            QLabel#tilings_label { font: 18px; margin: 0px; }
+            QComboBox#tilings_combo { font: 18px; margin: 0px; padding: 0px; }
+        ''')
 
         self.set_scale(scale_spin.value())
         self.reset()
@@ -806,6 +851,13 @@ class Interface(QtCore.QObject):
         self.reset()
 
     @showException
+    def on_set_corner(self, value):
+        self.set_corner(value)
+        self.shapes = {}
+        self.polys = {}
+        self.canvas.update()
+
+    @showException
     def on_set_thickness(self, value):
         self.set_thickness(value)
         self.canvas.update()
@@ -814,6 +866,11 @@ class Interface(QtCore.QObject):
     def on_knot_changed(self, state):
         self.knot = state
         self.reset()
+
+    @showException
+    def on_labels_changed(self, state):
+        self.labels = state
+        self.canvas.update()
 
     @showException
     def on_reset(self, index = 0):
@@ -855,7 +912,7 @@ class Interface(QtCore.QObject):
 
     def reset(self, index = 0):
         try:
-            self.config = Config(self.diag_combo.currentText())
+            self.config = Config(self.tilings_combo.currentText())
             self.error = None
         except Exception as e:
             self.config = Config("---- grid=0 background=fff foreground=f66")
@@ -869,13 +926,13 @@ class Interface(QtCore.QObject):
         point_set = { }
         yr = int( self.height/self.scale/4 )
         xr = int( self.width/self.scale/4 )
-        if self.config.labels:
+        if self.labels or self.config.labels:
             bound = self.scale * 3
             for y in range(-yr,yr):
                 for x in range(-yr,xr):
                     point = self.pos(x*2,y*2)
                     if point.x > bound and point.x < self.width-bound and \
-                       point.y > bound and point.y < self.height-bound-30:
+                       point.y > bound and point.y < self.height-bound-35:
                         point_set[(y,x)] = True
         else:
             bound = self.scale * 3
@@ -904,6 +961,9 @@ class Interface(QtCore.QObject):
 
     def set_scale(self, value):
         self.scale = value
+
+    def set_corner(self, value):
+        self.corner = value
 
     def set_thickness(self, value):
         self.thickness = value
@@ -958,9 +1018,8 @@ class Interface(QtCore.QObject):
                 edge + left*r,
             ]
 
-            result.append( (out * (1.0/out.length()), points, 0.5)) #0.625))
+            result.append( (out * (1.0/out.length()), points, self.corner))
             connections[i] = points
-            # Note: set constant to ~0.35 for old-style circular look
 
         if len(result) == 1:
             point = result[0][0]*(self.scale*-0.7)
@@ -1105,7 +1164,7 @@ class Interface(QtCore.QObject):
         painter.setBrush(self.background)
         painter.drawRect(0, 0, self.width, self.height)
 
-        if self.config.labels:
+        if self.labels or self.config.labels:
             fontSize = 16
             padding = 6
             self.setPaintFont(painter, fontSize)
@@ -1200,8 +1259,8 @@ class Interface(QtCore.QObject):
         while merde(result):
             pass
 
-        self.diag_combo.addItem(' '.join(result))
-        self.diag_combo.setCurrentIndex(self.diag_combo.count()-1)
+        self.tilings_combo.addItem(' '.join(result))
+        self.tilings_combo.setCurrentIndex(self.tilings_combo.count()-1)
         self.reset()
         self.randomizing = True
 
@@ -1232,7 +1291,7 @@ if __name__ == '__main__':
         print(result)
         done[normalize(result)] = True
 
-        interface.diag_combo.entry.set_text("'"+result+"', width=350, height=400")
+        interface.tilings_combo.entry.set_text("'"+result+"', width=350, height=400")
         interface.reset()
 
         while gtk.events_pending():

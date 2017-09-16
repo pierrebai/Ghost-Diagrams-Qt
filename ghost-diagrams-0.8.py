@@ -35,13 +35,14 @@
      A number of extra paramters can also be supplied:
 
          border : True/False : draw tile borders or not
-         fill : True/False : fill tile or not
+         fill : True/False : fill tile or not with colors
          thickness : the thickness of the border
          width : minimum width of diagram
          height : minimum height of diagram
-         colors : a list of colors
-            background color,edge-color,tile-1-color,tile-2-color...
-         grid : True/False : draw a grid
+         background : the background color
+         foreground : the foreground color (used for borders)
+         colors : a list of colors : tile-1-color,tile-2-color... (no spaces between colors)
+         grid : True/False : draw a grid or not
          labels : True/False : draw labels for each tile under diagram
          name : name of the tile set
 
@@ -77,7 +78,6 @@
         (difficulty: accidentally creating disconnected islands)
 
   TODO: (blue sky) 3D, third dimension == time
-  TODO: allowances: 3 of this, 2 of that, etc.
 """
 
 try:
@@ -92,6 +92,10 @@ import sys, os, random, math, functools
 import PyQt5.QtCore as QtCore
 import PyQt5.QtGui as QtGui
 import PyQt5.QtWidgets as QtWidgets
+
+
+# ========================================================================
+# Some maths helpers.
 
 class Point:
     def __init__(self, x,y):
@@ -108,43 +112,34 @@ class Point:
 def val2pt(vals):
     return [QtCore.QPoint(int(p[0]),int(p[1])) for p in vals]
 
+def bezier(a,b,c,d):
+    result = [ ]
+    n = 12
+    for i in range(1,n):
+        u = float(i) / n
+        result.append(
+            a * ((1-u)*(1-u)*(1-u)) +
+            b * (3*u*(1-u)*(1-u)) +
+            c * (3*u*u*(1-u)) +
+            d * (u*u*u)
+        )
+    return result
+
+
+def normalize(form):
+    best = form
+    for i in range(len(form)-1):
+        form = form[1:] + form[0]
+        if form > best: best = form
+    return best
+
 
 # ========================================================================
-# Constants
-
-# Hexagonal connection pattern:
-#
-#     o o
-#   o * o
-#   o o
-#
-# (all points remain on a square grid, but a regular hexagon pattern
-#  can be formed by a simple linear transformation)
-
-connections_6 = [ (-1, 0, 3), (-1, 1, 4), (0, 1, 5), (1, 0, 0), (1, -1, 1), (0, -1, 2) ]
-# [ (y, x, index of reverse connection) ]
-x_mapper_6 = Point(1.0, 0.0)
-y_mapper_6 = Point(0.5, 0.75**0.5)
-
-connections_4 = [ (-1,0,2), (0,1,3), (1,0,0), (0,-1,1) ]
-x_mapper_4 = Point(1.0, 0.0)
-y_mapper_4 = Point(0.0, 1.0)
-
-
-
-# What edge type connects with what?
-# (a tile is represented as a string of 6 characters representing the 6 edges)
-compatabilities = {
-    '-':'-',
-    'A':'a', 'a':'A', 'B':'b', 'b':'B', 'c':'C', 'C':'c', 'd':'D', 'D':'d',
-    '1':'1', '2':'2', '3':'3', '4':'4',  '_':'_'
-}
-
-
 # Some cool tile sets people have found
+
 catalogue = [
     "--33Aa -33-Aa",
-    "--33Aa/000 -33-Aa/000 colors=fff,fff border=0 grid=0",
+    "--33Aa/000 -33-Aa/000 background=fff foreground=888 border=0 grid=0",
     "ab-A-- B--C-- B--c-- B--D-- B--d--",
     "d-D-4- d--D-- 44----",
     "AaAa--",
@@ -216,7 +211,91 @@ catalogue = [
 ]
 
 
-default_colors=['fff','000', '8ff', 'f44', 'aaf','449', 'ff0088', 'ff4088', 'ff4040', 'ff00ff', '40c0ff']
+# =========================================================================
+
+class Config:
+    """Describe a tiling adn its connections, colors, options."""
+
+    # What edge type connects with what?
+    # (a tile is represented as a string of 6 characters representing the 6 edges)
+    compatabilities = {
+        '-':'-',
+        'A':'a', 'a':'A', 'B':'b', 'b':'B', 'c':'C', 'C':'c', 'd':'D', 'D':'d',
+        '1':'1', '2':'2', '3':'3', '4':'4',  '_':'_'
+    }
+
+    # Hexagonal connection pattern:
+    #
+    #     o o
+    #   o * o
+    #   o o
+    #
+    # (all points remain on a square grid, but a regular hexagon pattern
+    #  can be formed by a simple linear transformation)
+
+    # [ (y, x, index of reverse connection) ]
+    connections_6 = [ (-1, 0, 3), (-1, 1, 4), (0, 1, 5), (1, 0, 0), (1, -1, 1), (0, -1, 2) ]
+    x_mapper_6 = Point(1.0, 0.0)
+    y_mapper_6 = Point(0.5, 0.75**0.5)
+
+    connections_4 = [ (-1,0,2), (0,1,3), (1,0,0), (0,-1,1) ]
+    x_mapper_4 = Point(1.0, 0.0)
+    y_mapper_4 = Point(0.0, 1.0)
+
+    default_colors=['8ff', 'f44', 'aaf','449', 'ff0088', 'ff4088', 'ff4040', 'ff00ff', '40c0ff']
+
+    def __init__(self, cfg):
+        self.colors = Config.default_colors[:] # Note: make a copy, don't change defaults!
+        self.background = 'fff'
+        self.foreground = '000'
+        self.border = True
+        self.fill = True
+        self.thickness = 1.0
+        self.width = -1
+        self.height = -1
+        self.grid = True
+        self.labels = False
+        self.forms = []
+        self.name = ""
+
+        parse_config(self, cfg)
+
+        self.colors += Config.default_colors[len(self.colors):]
+
+        if len(self.forms) < 1: raise Exception("Not enough forms")
+
+        self.probabilities = [1] * len(self.forms)
+
+        for item in self.forms:
+            if type(item) != type(""):
+                raise Exception("Form #d is not text (%s)" % (self.forms.index(item)+1, item))
+
+        for i in range(len(self.forms)):
+            if "/" in self.forms[i]:
+                self.forms[i], self.colors[i%len(self.colors)] = self.forms[i].split("/",1)
+            if "@" in self.forms[i]:
+                self.forms[i], count = self.forms[i].split("@",1)
+                self.probabilities[i] = int(count)
+
+        if len(self.forms[0]) == 4:
+            self.connections = Config.connections_4
+            self.x_mapper = Config.x_mapper_4
+            self.y_mapper = Config.y_mapper_4
+        else:
+            self.connections = Config.connections_6
+            self.x_mapper = Config.x_mapper_6
+            self.y_mapper = Config.y_mapper_6
+
+        for item in self.forms:
+            if len(item) != len(self.connections):
+                raise Exception("Incorrect connection length for item #%d (%s)" % (self.forms.index(item)+1, item))
+            for edge in item:
+                if edge not in Config.compatabilities:
+                    raise Exception("No compatible conection for form #%d (%s)" % (self.forms.index(item)+1, item))
+
+
+# ========================================================================
+# Config parser. Convert the text description into a Config.
 
 def alloc_color(text):
     comp = []
@@ -230,142 +309,89 @@ def alloc_color(text):
     else:
         return QtGui.QColor(128, 128, 128)
 
+def parse_common(name, text):
+    if '=' not in text:
+        return None
+    if name not in text:
+        return None
+    arg, val = text.split('=')
+    if arg.lower() != name:
+        return None
+    return val
 
-# ========================================================================
-# Utility functions
-
-def bezier(a,b,c,d):
-    result = [ ]
-    n = 12
-    for i in range(1,n):
-        u = float(i) / n
-        result.append(
-            a * ((1-u)*(1-u)*(1-u)) +
-            b * (3*u*(1-u)*(1-u)) +
-            c * (3*u*u*(1-u)) +
-            d * (u*u*u)
-        )
-    return result
-
-
-def normalize(form):
-    best = form
-    for i in range(len(form)-1):
-        form = form[1:] + form[0]
-        if form > best: best = form
-    return best
-
-def parse_colors(self, c):
-    pass
-
-def parse_bool(self, c):
-    if '=' not in c:
+def parse_bool(self, name, text):
+    val = parse_common(name, text)
+    if not val:
         return False
+    setattr(self, name, bool(int(val)))
+    return True
+
+def parse_float(self, name, text):
+    val = parse_common(name, text)
+    if not val:
+        return False
+    setattr(self, name, float(val))
+    return True
+
+def parse_int(self, name, text):
+    val = parse_common(name, text)
+    if not val:
+        return False
+    setattr(self, name, int(val))
+    return True
+
+def parse_text(self, name, text):
+    val = parse_common(name, text)
+    if not val:
+        return False
+    setattr(self, name, val)
+    return True
+
+def parse_color(self, name, text):
+    val = parse_common(name, text)
+    if not val:
+        return False
+    if not all([c in '0123456789abcdefABCDEF' for c in val]):
+        raise Exception('Color description "%s" for %s is not in hexadecimal.' %(val, name))
+    setattr(self, name, val)
+    return True
+
+def parse_colors_array(self, name, text):
+    val = parse_common(name, text)
+    if not val:
+        return False
+    for i, color in enumerate(val.split(',')):
+        if not all([c in '0123456789abcdefABCDEF' for c in color]):
+            raise Exception('Color description "%s" for %s is not in hexadecimal.' %(color, name))
+        self.colors[i] = color
+    return True
+
+def parse_config(self, text):
+    parsers = {
+        'border'        : parse_bool,
+        'fill'          : parse_bool,
+        'thickness'     : parse_float,
+        'width'         : parse_int,
+        'height'        : parse_int,
+        'background'    : parse_color,
+        'foreground'    : parse_color,
+        'colors'        : parse_colors_array,
+        'grid'          : parse_bool,
+        'labels'        : parse_bool,
+        'name'          : parse_text,
+    }
+
     try:
-        m, b = c.split('=')
-        setattr(self, m, bool(b))
-        return True
-    except Exception as e:
-        return False
-
-def parse_float(self, c):
-    if '=' not in c or '.' not in c:
-        return False
-    try:
-        m, f = c.split('=')
-        setattr(self, m, float(f))
-        return True
-    except Exception as e:
-        return False
-
-def parse_int(self, c):
-    if '=' not in c:
-        return False
-    try:
-        m, i = c.split('=')
-        setattr(self, m, int(i))
-        return True
-    except Exception as e:
-        return False
-
-def parse_text(self, c):
-    if '=' not in c:
-        return False
-    try:
-        m, t = c.split('=')
-        setattr(self, m, t)
-        return True
-    except Exception as e:
-        return False
-
-def parse_array_colors(self, c):
-    if '=' not in c:
-        return False
-    try:
-        m, colors_text = c.split('=')
-        colors = []
-        for color_text in colors_text.split(','):
-            colors.append(color_text)
-        setattr(self, m, colors)
-        return True
-    except Exception as e:
-        return False
-
-
-# =========================================================================
-
-class Config:
-    def __init__(self, cfg):
-        self.colors = []
-        self.border = True
-        self.fill = True
-        self.thickness = 1.0
-        self.width = -1
-        self.height = -1
-        self.grid = True
-        self.labels = False
-        self.forms = []
-        self.name = ""
-
-        for c in cfg.split():
-            for parse in (parse_float, parse_int, parse_array_colors, parse_bool, parse_text):
-                if parse(self, c):
+        for c in text.split():
+            for arg, parser in parsers.items():
+                if parser(self, arg, c):
                     break
             else:
                 self.forms.append(c)
+    except Exception as e:
+        print(str(e))
+        QtWidgets.QErrorMessage(None).showMessage(str(e))
 
-        self.colors += default_colors[len(self.colors):]
-
-        if len(self.forms) < 1: raise Exception("Not enough forms")
-
-        self.probabilities = [1] * len(self.forms)
-
-        for item in self.forms:
-            if type(item) != type(""):
-                raise Exception("Form #d is not text (%s)" % (self.forms.index(item)+1, item))
-
-        for i in range(len(self.forms)):
-            if "/" in self.forms[i]:
-                self.forms[i], self.colors[i%(len(self.colors)-2)+2] = self.forms[i].split("/",1)
-            if "@" in self.forms[i]:
-                self.forms[i], count = self.forms[i].split("@",1)
-                self.probabilities[i] = int(count)
-
-        if len(self.forms[0]) == 4:
-            self.connections = connections_4
-            self.x_mapper = x_mapper_4
-            self.y_mapper = y_mapper_4
-        else:
-            self.connections = connections_6
-            self.x_mapper = x_mapper_6
-            self.y_mapper = y_mapper_6
-
-        for item in self.forms:
-            if len(item) != len(self.connections):
-                raise Exception("Incorrect connection length for item #%d (%s)" % (self.forms.index(item)+1, item))
-            for edge in item:
-                if edge not in compatabilities:
-                    raise Exception("No compatible conection for form #%d (%s)" % (self.forms.index(item)+1, item))
 
 # ========================================================================
 
@@ -381,6 +407,14 @@ class Assembler:
         self.form_id = [ ]   # [original form number]
         self.rotation = [ ]  # [rotation from original]
         self.probabilities = [ ]
+        self.tiles = { }   # (y,x) -> form number
+        self.dirty = { }   # (y,x) -> True   -- Possible sites for adding tiles
+        self.options_cache = { }   # pattern -> [form_ids]
+        self.dead_loci = set([ ]) # [ {(y,x)->form number} ]
+        self.history = [ ]
+        self.total_y = 0
+        self.total_x = 0
+        self.changes = { }
 
         for id, form in enumerate(forms):
             current = form
@@ -391,21 +425,6 @@ class Assembler:
                     self.rotation.append(i)
                     self.probabilities.append(probabilities[id])
                 current = current[1:] + current[0]
-
-        self.tiles = { }   # (y,x) -> form number
-
-        self.dirty = { }   # (y,x) -> True   -- Possible sites for adding tiles
-
-        self.options_cache = { }   # pattern -> [form_ids]
-
-        self.dead_loci = set([ ]) # [ {(y,x)->form number} ]
-
-        self.history = [ ]
-
-        self.total_y = 0
-        self.total_x = 0
-
-        self.changes = { }
 
     def put(self, y,x, value):
         if (y,x) in self.changes:
@@ -819,9 +838,12 @@ class Interface(QtCore.QObject):
         try:
             self.config = Config(self.diag_combo.currentText())
         except Exception as e:
+            self.config = Config("---- grid=1 background=844 foreground=f66")
             QtWidgets.QErrorMessage(self.window).showMessage(str(e))
-            self.config = Config("---- grid=0 colors=f66")
+            # TODO: print error in canvas instead.
 
+        self.background = alloc_color(self.config.background)
+        self.foreground = alloc_color(self.config.foreground)
         self.colors = [ alloc_color(item) for item in self.config.colors ]
 
         point_set = { }
@@ -849,7 +871,7 @@ class Interface(QtCore.QObject):
         self.iteration = 0
         self.shapes = { }
         self.polys = { }
-        self.assembler = Assembler(self.config.connections, compatabilities,
+        self.assembler = Assembler(self.config.connections, Config.compatabilities,
                                    self.config.forms, self.config.probabilities, point_set)
         self.timer = QtCore.QTimer()
         self.timer.timeout.connect(self.on_idle)
@@ -952,8 +974,8 @@ class Interface(QtCore.QObject):
                 for i in range(len(form)):
                     if form[i] not in ' -' and \
                        form.count(form[i]) == 1 and \
-                       (compatabilities[form[i]] == form[i] or \
-                        form.count(compatabilities[form[i]])%2 == 0):
+                       (Config.compatabilities[form[i]] == form[i] or \
+                        form.count(Config.compatabilities[form[i]])%2 == 0):
                         items.remove(i)
 
             if len(items)%2 != 0:
@@ -1007,13 +1029,13 @@ class Interface(QtCore.QObject):
 
         if len(poly) > 0:
             if erase:
-                color = 0
+                color = self.background
             else:
-                color = self.assembler.form_id[form_number] % (len(self.colors)-2) + 2
+                color = self.colors[self.assembler.form_id[form_number] % len(self.colors)]
 
-            def setStyle(painter, border, fill):
-                if border:
-                    pen = QtGui.QPen(border)
+            def setStyle(painter, edge, fill):
+                if edge:
+                    pen = QtGui.QPen(edge)
                     pen.setWidth(max(1,int(self.thickness * self.config.thickness)))
                     pen.setCapStyle(QtCore.Qt.RoundCap)
                     pen.setJoinStyle(QtCore.Qt.RoundJoin)
@@ -1026,18 +1048,18 @@ class Interface(QtCore.QObject):
                     painter.setBrush(QtGui.QBrush(QtCore.Qt.NoBrush))
 
             if self.config.fill:
-                setStyle(painter, None, self.colors[color])
+                setStyle(painter, None, color)
                 painter.drawPolygon(*val2pt(poly))
 
             if self.knot:
-                setStyle(painter, self.colors[color], None)
+                setStyle(painter, color, None)
                 for link, line1, line2 in links:
                     if not erase:
-                        setStyle(painter, None, self.colors[1])
+                        setStyle(painter, None, self.foreground)
                     painter.drawPolygon(*val2pt(link))
                     if not erase:
-                        setStyle(painter, None, self.colors[color])
-                    setStyle(painter, self.colors[color], None)
+                        setStyle(painter, None, color)
+                    setStyle(painter, color, None)
                     #painter.drawPolygon(*val2pt(link))
                     painter.drawLines(*val2pt(line1))
                     painter.drawLines(*val2pt(line2))
@@ -1046,7 +1068,7 @@ class Interface(QtCore.QObject):
 
             if self.config.border:
                 if not erase:
-                    setStyle(painter, self.colors[1], None)
+                    setStyle(painter, self.foreground, None)
                 painter.drawPolygon(*val2pt(poly))
 
     @QtCore.pyqtSlot('QPainter')
@@ -1054,11 +1076,13 @@ class Interface(QtCore.QObject):
         if not self.assembler.tiles:
             return
 
-        painter.setPen(self.colors[0])
+        painter.setPen(self.background)
+        painter.setBrush(self.background)
+        painter.drawRect(0, 0, self.width, self.height)
 
         if self.config.labels and False:
             font = pango.FontDescription("mono bold 36")
-            painter.setPen(self.colors[1])
+            painter.setPen(self.foreground)
 
             for i, form in enumerate(self.assembler.basic_forms):
                 layout = self.canvas.create_pango_layout(" "+form.replace(" ","-")+" ")
@@ -1067,7 +1091,7 @@ class Interface(QtCore.QObject):
                 y = (self.height-70)
                 width, height = layout.get_pixel_size()
                 self.pixmap.draw_rectangle(self.gc, True, x-6,y-6, width+12,height+12)
-                self.pixmap.draw_layout(self.gc, x,y, layout, self.colors[1], self.colors[i+2])
+                self.pixmap.draw_layout(self.gc, x,y, layout, self.foreground, self.colors[i])
 
         if self.config.grid:
             pen = QtGui.QPen()
@@ -1132,7 +1156,7 @@ class Interface(QtCore.QObject):
                 item = ['-']*(sides-edge_count)
                 for j in range(edge_count):
                     selection = random.choice(previous)
-                    previous += compatabilities[selection]*6 #12
+                    previous += Config.compatabilities[selection]*6 #12
                     item.append(selection)
 
                 random.shuffle(item)
@@ -1141,7 +1165,7 @@ class Interface(QtCore.QObject):
                 result.append(item)
 
             all = ''.join(result)
-            for a, b in compatabilities.items():
+            for a, b in Config.compatabilities.items():
                 if a in all and b not in all: return True
             return False
         while merde(result):

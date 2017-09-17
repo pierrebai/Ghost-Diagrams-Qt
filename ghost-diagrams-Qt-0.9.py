@@ -765,12 +765,16 @@ class Interface(QtCore.QObject):
         self.tilings_combo.currentIndexChanged.connect(self.on_reset)
         self.tilings_combo.setObjectName('tilings_combo')
 
+        random_button = QtWidgets.QPushButton('Random')
+        random_button.clicked.connect(self.on_random)
+
         hbox = QtWidgets.QHBoxLayout()
         hbox.setContentsMargins(0,0,0,0)
         tilings_frame = QtWidgets.QFrame()
         tilings_frame.setLayout(hbox)
         hbox.addWidget(tilings_label)
         hbox.addWidget(self.tilings_combo)
+        hbox.addWidget(random_button)
 
         self.fill_box = QtWidgets.QCheckBox("Filled")
         self.fill_box.setChecked(self.fill)
@@ -789,7 +793,7 @@ class Interface(QtCore.QObject):
         self.grid_box.stateChanged.connect(self.on_grid_changed)
 
 
-        self.labels_box = QtWidgets.QCheckBox("Show Tiling Colors")
+        self.labels_box = QtWidgets.QCheckBox("Show Tile Labels")
         self.labels_box.setChecked(self.labels)
         self.labels_box.stateChanged.connect(self.on_labels_changed)
 
@@ -817,9 +821,6 @@ class Interface(QtCore.QObject):
         self.thickness_spin.setValue(self.thickness)
         self.thickness_spin.valueChanged.connect(self.on_set_thickness)
 
-        random_button = QtWidgets.QPushButton('Random')
-        random_button.clicked.connect(self.on_random)
-
         reset_button = QtWidgets.QPushButton('Restart')
         reset_button.clicked.connect(self.on_reset)
 
@@ -835,7 +836,6 @@ class Interface(QtCore.QObject):
         hbox.addWidget(self.labels_box)
         hbox.addStretch(1)
         hbox.addWidget(reset_button)
-        hbox.addWidget(random_button)
         hbox.addStretch(1)
         hbox.addWidget(scale_label)
         hbox.addWidget(self.scale_spin)
@@ -866,6 +866,26 @@ class Interface(QtCore.QObject):
             QLabel#tilings_label { font: 18px; }
             QComboBox#tilings_combo { font: 18px; }
         ''')
+
+        def add_click_shortcut(shortcut, widget):
+            sc = QtWidgets.QShortcut(QtGui.QKeySequence(shortcut), widget)
+            sc.activated.connect(widget.click)
+
+        def add_focus_shortcut(shortcut, widget):
+            sc = QtWidgets.QShortcut(QtGui.QKeySequence(shortcut), widget)
+            sc.activated.connect(widget.setFocus)
+
+        add_click_shortcut('Ctrl+F', self.fill_box)
+        add_click_shortcut('Ctrl+B', self.border_box)
+        add_click_shortcut('Ctrl+K', self.knot_box)
+        add_click_shortcut('Ctrl+G', self.grid_box)
+        add_click_shortcut('Ctrl+L', self.labels_box)
+        add_click_shortcut('Ctrl+ ', reset_button)
+        add_click_shortcut('Ctrl+R', random_button)
+        add_focus_shortcut('Ctrl+S', self.scale_spin)
+        add_focus_shortcut('Ctrl+H', self.thickness_spin)
+        add_focus_shortcut('Ctrl+C', self.corner_spin)
+        add_focus_shortcut('Ctrl+T', self.tilings_combo)
 
         self.reset()
 

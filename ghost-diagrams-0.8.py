@@ -143,6 +143,17 @@ def normalize(form):
 # Some cool tile sets people have found
 
 catalogue = [
+    "c414*5 4444*5 C4--*5 4---",
+    "1111-- 1-1---",
+    "dD4- 4-4- 4a4A aA-- a-A-",
+    "c44444 444444 4C44-- c--4--/f C--4--/f border=0",
+    "cC-cC-*3 c-c-4-*3 C----- name=SSSS",
+    "cC-cC-*3/f c-c-4-*3/f C-----/f name=SSSS background=0 grid=0 foreground=d labels=0",
+    "C332 c33- C-33 name=Alternance",
+    "ddDD dDdD dD--",
+    "3333-- name=triangles labels=1",
+    "3322-- 2--2--*10 name=two-sizes labels=1",
+    "cABa aCAb aA-- aCA- acA- name=trains",
     "--33Aa -33-Aa",
     "--33Aa/000 -33-Aa/000 background=fff foreground=888 border=0 grid=0",
     "ab-A-- B--C-- B--c-- B--D-- B--d--",
@@ -253,13 +264,13 @@ class Config:
         self.colors = Config.default_colors[:] # Note: make a copy, don't change defaults!
         self.background = 'fff'
         self.foreground = '000'
-        self.border = True
-        self.fill = True
+        self.border = None
+        self.fill = None
         self.thickness = 1.0
         self.width = -1
         self.height = -1
-        self.grid = True
-        self.labels = True
+        self.grid = None
+        self.labels = None
         self.forms = []
         self.name = ""
 
@@ -696,6 +707,8 @@ class Canvas(QtWidgets.QFrame):
 
     def __init__(self):
         QtWidgets.QFrame.__init__(self)
+        self.setAttribute(QtCore.Qt.WA_NoSystemBackground)
+        self.setAttribute(QtCore.Qt.WA_OpaquePaintEvent)
 
     def paintEvent(self, event):
         painter = QtGui.QPainter()
@@ -719,6 +732,9 @@ class Interface(QtCore.QObject):
         self.scale = 8
         self.thickness = 1
         self.knot = False
+        self.border = True
+        self.fill = True
+        self.grid = True
         self.randomizing = False
         self.iteration = 0
         self.shapes = { }
@@ -728,9 +744,10 @@ class Interface(QtCore.QObject):
         self.error = None
         self.labels = True
         self.corner = 0.5
+        self.full_paint = True
 
         self.canvas = Canvas()
-        self.canvas.painting.connect(self.on_paint)
+        self.canvas.painting.connect(self.on_paint_changes)
         self.canvas.resizing.connect(self.on_size)
         self.canvas.resize(self.width, self.height)
         self.canvas.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
@@ -755,9 +772,22 @@ class Interface(QtCore.QObject):
         hbox.addWidget(tilings_label)
         hbox.addWidget(self.tilings_combo)
 
-        knot_box = QtWidgets.QCheckBox("Draw Knot")
-        knot_box.setChecked(self.knot)
-        knot_box.stateChanged.connect(self.on_knot_changed)
+        self.fill_box = QtWidgets.QCheckBox("Filled")
+        self.fill_box.setChecked(self.fill)
+        self.fill_box.stateChanged.connect(self.on_fill_changed)
+
+        self.border_box = QtWidgets.QCheckBox("Borders")
+        self.border_box.setChecked(self.border)
+        self.border_box.stateChanged.connect(self.on_border_changed)
+
+        self.knot_box = QtWidgets.QCheckBox("Knot")
+        self.knot_box.setChecked(self.knot)
+        self.knot_box.stateChanged.connect(self.on_knot_changed)
+
+        self.grid_box = QtWidgets.QCheckBox("Grid")
+        self.grid_box.setChecked(self.grid)
+        self.grid_box.stateChanged.connect(self.on_grid_changed)
+
 
         self.labels_box = QtWidgets.QCheckBox("Show Tiling Colors")
         self.labels_box.setChecked(self.labels)
@@ -765,27 +795,27 @@ class Interface(QtCore.QObject):
 
         scale_label = QtWidgets.QLabel('Size:')
         scale_label.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
-        scale_spin = QtWidgets.QSpinBox()
-        scale_spin.setSingleStep(1)
-        scale_spin.setRange(3, 50)
-        scale_spin.setValue(self.scale)
-        scale_spin.valueChanged.connect(self.on_set_scale)
+        self.scale_spin = QtWidgets.QSpinBox()
+        self.scale_spin.setSingleStep(1)
+        self.scale_spin.setRange(3, 50)
+        self.scale_spin.setValue(self.scale)
+        self.scale_spin.valueChanged.connect(self.on_set_scale)
 
         corner_label = QtWidgets.QLabel('Corner Radius:')
         corner_label.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
-        corner_spin = QtWidgets.QDoubleSpinBox()
-        corner_spin.setRange(0.1, 0.9)
-        corner_spin.setSingleStep(0.1)
-        corner_spin.setValue(self.corner)
-        corner_spin.valueChanged.connect(self.on_set_corner)
+        self.corner_spin = QtWidgets.QDoubleSpinBox()
+        self.corner_spin.setRange(0.1, 0.9)
+        self.corner_spin.setSingleStep(0.1)
+        self.corner_spin.setValue(self.corner)
+        self.corner_spin.valueChanged.connect(self.on_set_corner)
 
         thickness_label = QtWidgets.QLabel('Thickness:')
         thickness_label.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
-        thickness_spin = QtWidgets.QSpinBox()
-        thickness_spin.setSingleStep(1)
-        thickness_spin.setRange(1, 8)
-        thickness_spin.setValue(self.thickness)
-        thickness_spin.valueChanged.connect(self.on_set_thickness)
+        self.thickness_spin = QtWidgets.QSpinBox()
+        self.thickness_spin.setSingleStep(1)
+        self.thickness_spin.setRange(1, 8)
+        self.thickness_spin.setValue(self.thickness)
+        self.thickness_spin.valueChanged.connect(self.on_set_thickness)
 
         random_button = QtWidgets.QPushButton('Random')
         random_button.clicked.connect(self.on_random)
@@ -798,18 +828,21 @@ class Interface(QtCore.QObject):
         hframe = QtWidgets.QFrame()
         hframe.setLayout(hbox)
         hbox.addStretch(3)
-        hbox.addWidget(knot_box)
+        hbox.addWidget(self.fill_box)
+        hbox.addWidget(self.border_box)
+        hbox.addWidget(self.knot_box)
+        hbox.addWidget(self.grid_box)
         hbox.addWidget(self.labels_box)
         hbox.addStretch(1)
         hbox.addWidget(reset_button)
         hbox.addWidget(random_button)
         hbox.addStretch(1)
         hbox.addWidget(scale_label)
-        hbox.addWidget(scale_spin)
+        hbox.addWidget(self.scale_spin)
         hbox.addWidget(thickness_label)
-        hbox.addWidget(thickness_spin)
+        hbox.addWidget(self.thickness_spin)
         hbox.addWidget(corner_label)
-        hbox.addWidget(corner_spin)
+        hbox.addWidget(self.corner_spin)
         hbox.addStretch(3)
 
         vbox = QtWidgets.QVBoxLayout()
@@ -834,42 +867,66 @@ class Interface(QtCore.QObject):
             QComboBox#tilings_combo { font: 18px; margin: 0px; padding: 0px; }
         ''')
 
-        self.set_scale(scale_spin.value())
         self.reset()
 
     ###################################################################
-    # Event handlers.
+    # Event handlers. UI -> Data.
 
     @showException
     def on_size(self, sz):
-        self.update_size(sz)
+        self.width = sz.width()
+        self.height = sz.height()
         self.reset()
 
     @showException
     def on_set_scale(self, value):
-        self.set_scale(value)
+        self.scale = value
         self.reset()
 
     @showException
     def on_set_corner(self, value):
-        self.set_corner(value)
+        self.corner = value
         self.shapes = {}
         self.polys = {}
+        self.full_paint = True
         self.canvas.update()
 
     @showException
     def on_set_thickness(self, value):
-        self.set_thickness(value)
+        self.thickness = value
+        self.full_paint = True
+        self.canvas.update()
+
+    @showException
+    def on_fill_changed(self, state):
+        self.fill = state
+        self.full_paint = True
+        self.canvas.update()
+
+    @showException
+    def on_border_changed(self, state):
+        self.border = state
+        self.full_paint = True
         self.canvas.update()
 
     @showException
     def on_knot_changed(self, state):
         self.knot = state
-        self.reset()
+        self.shapes = {}
+        self.polys = {}
+        self.full_paint = True
+        self.canvas.update()
 
     @showException
     def on_labels_changed(self, state):
         self.labels = state
+        self.full_paint = True
+        self.canvas.update()
+
+    @showException
+    def on_grid_changed(self, state):
+        self.grid = state
+        self.full_paint = True
         self.canvas.update()
 
     @showException
@@ -889,6 +946,7 @@ class Interface(QtCore.QObject):
         if not self.assembler.iterate():
             self.timer.stop()
             self.timer = None
+            self.full_paint = True
             self.canvas.update()
 
         self.iteration += 1
@@ -905,7 +963,83 @@ class Interface(QtCore.QObject):
             #    self.random(True)
 
         if self.iteration % 8 == 0:
+            if self.iteration % 1000 == 0:
+                self.full_paint = True
             self.canvas.update()
+
+    ###################################################################
+    # Data -> UI.
+
+    def set_grid(self, value):
+        if value is None:
+            return
+        self.grid = value
+        self.grid_box.setChecked(self.grid)
+        self.full_paint = True
+        self.canvas.update()
+
+    def set_knot(self, value):
+        if value is None:
+            return
+        self.knot = value
+        self.knot_box.setChecked(self.knot)
+        self.full_paint = True
+        self.canvas.update()
+
+    def set_labels(self, value):
+        if value is None:
+            return
+        self.labels = value
+        self.labels_box.setChecked(self.labels)
+        self.full_paint = True
+        self.canvas.update()
+
+    def set_border(self, value):
+        if value is None:
+            return
+        self.border = value
+        self.border_box.setChecked(self.border)
+        self.full_paint = True
+        self.canvas.update()
+
+    def set_fill(self, value):
+        if value is None:
+            return
+        self.fill = value
+        self.fill_box.setChecked(self.fill)
+        self.full_paint = True
+        self.canvas.update()
+
+    def set_scale(self, value):
+        if value is None:
+            return
+        self.scale = value
+        self.scale_spin.setValue(self.scale)
+        self.reset()
+
+    def set_corner(self, value):
+        if value is None:
+            return
+        self.corner = value
+        self.corner_spin.setValue(self.corner)
+        self.full_paint = True
+        self.canvas.update()
+
+    def set_thickness(self, value):
+        if value is None:
+            return
+        self.thickness = value
+        self.thickness_spin.setValue(self.thickness)
+        self.full_paint = True
+        self.canvas.update()
+
+    def set_size(self, sz):
+        if sz is None:
+            return
+        self.width = sz.width()
+        self.height = sz.height()
+        self.full_paint = True
+        self.canvas.update()
 
     ###################################################################
     # Processing.
@@ -917,7 +1051,13 @@ class Interface(QtCore.QObject):
         except Exception as e:
             self.config = Config("---- grid=0 background=fff foreground=f66")
             self.error = str(e)
+            self.full_paint = True
             self.canvas.update()
+
+        self.set_fill(self.config.fill)
+        self.set_border(self.config.border)
+        self.set_labels(self.config.labels)
+        self.set_grid(self.config.grid)
 
         self.background = alloc_color(self.config.background)
         self.foreground = alloc_color(self.config.foreground)
@@ -926,18 +1066,18 @@ class Interface(QtCore.QObject):
         point_set = { }
         yr = int( self.height/self.scale/4 )
         xr = int( self.width/self.scale/4 )
-        if self.labels or self.config.labels:
+        if self.labels:
             bound = self.scale * 3
             for y in range(-yr,yr):
-                for x in range(-yr,xr):
+                for x in range(-xr,xr):
                     point = self.pos(x*2,y*2)
                     if point.x > bound and point.x < self.width-bound and \
-                       point.y > bound and point.y < self.height-bound-35:
+                       point.y > bound and point.y < self.height-bound-40:
                         point_set[(y,x)] = True
         else:
             bound = self.scale * 3
             for y in range(-yr,yr):
-                for x in range(-yr,xr):
+                for x in range(-xr,xr):
                     point = self.pos(x*2,y*2)
                     if point.x > -bound and point.x < self.width+bound and \
                        point.y > -bound and point.y < self.height+bound:
@@ -948,6 +1088,7 @@ class Interface(QtCore.QObject):
         self.iteration = 0
         self.shapes = { }
         self.polys = { }
+        self.full_paint = True
         self.assembler = Assembler(self.config.connections, Config.compatabilities,
                                    self.config.forms, self.config.probabilities, point_set)
         self.timer = QtCore.QTimer()
@@ -957,20 +1098,6 @@ class Interface(QtCore.QObject):
     def run(self, app):
         self.window.show()
         app.exec()
-
-
-    def set_scale(self, value):
-        self.scale = value
-
-    def set_corner(self, value):
-        self.corner = value
-
-    def set_thickness(self, value):
-        self.thickness = value
-
-    def update_size(self, sz):
-        self.width = sz.width()
-        self.height = sz.height()
 
     def pos(self, x,y, center=True):
         result = (self.config.x_mapper*x + self.config.y_mapper*y) * (self.scale*2)
@@ -1128,11 +1255,13 @@ class Interface(QtCore.QObject):
         if len(poly) > 0:
             if erase:
                 color = self.background
+                self.setPaintColors(painter, color, color)
             else:
                 color = self.colors[self.assembler.form_id[form_number] % len(self.colors)]
 
-            if self.config.fill:
-                self.setPaintColors(painter, None, color)
+            if self.fill:
+                if not erase:
+                    self.setPaintColors(painter, None, color)
                 painter.drawPolygon(*val2pt(poly))
 
             if self.knot:
@@ -1150,37 +1279,40 @@ class Interface(QtCore.QObject):
                     #painter.drawLine(*val2pt(connections[i][-1]+connections[j][0]))
                     #painter.drawLine(*val2pt(connections[j][-1]+connections[i][0]))
 
-            if self.config.border:
+            if self.border:
                 if not erase:
                     self.setPaintColors(painter, self.foreground, None)
                 painter.drawPolygon(*val2pt(poly))
 
-    @QtCore.pyqtSlot('QPainter')
-    def on_paint(self, painter):
-        if not self.assembler.tiles:
-            return
+    def draw_text(self, painter, x, y, padding, with_rect, text):
+        alignment = QtCore.Qt.AlignLeft | QtCore.Qt.AlignTop | QtCore.Qt.TextWordWrap
+        r = painter.boundingRect(x, y, self.width - x, self.height - y, alignment, text)
+        r.adjust(-padding, -padding, padding * 2, padding * 2)
+        if with_rect:
+            painter.drawRect(r)
+        alignment = QtCore.Qt.AlignCenter | QtCore.Qt.TextWordWrap
+        painter.drawText(r, alignment, text)
+        return r.right() + padding * 2
 
-        painter.setPen(self.background)
-        painter.setBrush(self.background)
+    @showException
+    def on_paint(self, painter):
+        self.setPaintColors(painter, self.foreground, self.background)
         painter.drawRect(0, 0, self.width, self.height)
 
-        if self.labels or self.config.labels:
+        if self.labels:
             fontSize = 16
             padding = 6
             self.setPaintFont(painter, fontSize)
             x = padding * 2
-            y = self.height - fontSize - padding * 3
+            y = self.height - fontSize - padding * 4
+            if self.config.name:
+                self.setPaintColors(painter, self.foreground, self.background)
+                x = self.draw_text(painter, x, y, padding, False, self.config.name)
             for i, form in enumerate(self.assembler.basic_forms):
-                alignment = QtCore.Qt.AlignLeft | QtCore.Qt.AlignTop | QtCore.Qt.TextWordWrap
-                r = painter.boundingRect(x, y, self.width - x, self.height - y, alignment, form)
-                r.adjust(-padding, -padding, padding * 2, padding * 2)
                 self.setPaintColors(painter, self.foreground, self.colors[i])
-                painter.drawRect(r)
-                alignment = QtCore.Qt.AlignCenter | QtCore.Qt.TextWordWrap
-                painter.drawText(r, alignment, form)
-                x = r.right() + padding * 2
+                x = self.draw_text(painter, x, y, padding, True, form)
 
-        if self.config.grid:
+        if self.grid:
             self.setPaintColors(painter, alloc_color("eee"), None)
             f = 4.0 / len(self.config.connections)
             for (y,x) in self.assembler.point_set.keys():
@@ -1201,7 +1333,12 @@ class Interface(QtCore.QObject):
             painter.drawText(0, 0, self.width, self.height, QtCore.Qt.AlignCenter | QtCore.Qt.TextWordWrap, self.error)
 
 
+    @showException
     def on_paint_changes(self,painter):
+        if self.full_paint:
+            self.full_paint = False
+            self.on_paint(painter)
+
         changes = self.assembler.changes
         self.assembler.changes = { }
         for y,x in changes:

@@ -237,7 +237,7 @@ class Config:
     compatabilities = {
         '-':'-',
         'A':'a', 'a':'A', 'B':'b', 'b':'B', 'c':'C', 'C':'c', 'd':'D', 'D':'d',
-        '1':'1', '2':'2', '3':'3', '4':'4',  '_':'_'
+        '1':'1', '2':'2', '3':'3', '4':'4'
     }
 
     # Hexagonal connection pattern:
@@ -687,7 +687,7 @@ class Assembler:
 
 
 def showException(f):
-    """Letting Python exception though to Qt crashes Python, so keep them contained."""
+    """Letting Python exception through to Qt crashes Python, so keep them contained."""
 
     @functools.wraps(f)
     def wrapper(self, *args, **kw):
@@ -747,7 +747,7 @@ class Interface(QtCore.QObject):
         self.full_paint = True
 
         self.canvas = Canvas()
-        self.canvas.painting.connect(self.on_paint_changes)
+        self.canvas.painting.connect(self.on_paint)
         self.canvas.resizing.connect(self.on_size)
         self.canvas.resize(self.width, self.height)
         self.canvas.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
@@ -863,8 +863,8 @@ class Interface(QtCore.QObject):
         grid.addWidget(vframe)
 
         self.window.setStyleSheet('''
-            QLabel#tilings_label { font: 18px; margin: 0px; }
-            QComboBox#tilings_combo { font: 18px; margin: 0px; padding: 0px; }
+            QLabel#tilings_label { font: 18px; }
+            QComboBox#tilings_combo { font: 18px; }
         ''')
 
         self.reset()
@@ -967,6 +967,10 @@ class Interface(QtCore.QObject):
                 self.full_paint = True
             self.canvas.update()
 
+    @showException
+    def on_paint(self, painter):
+        self.paint_changes(painter)
+
     ###################################################################
     # Data -> UI.
 
@@ -1042,7 +1046,7 @@ class Interface(QtCore.QObject):
         self.canvas.update()
 
     ###################################################################
-    # Processing.
+    # Starting a new tiling.
 
     def reset(self, index = 0):
         try:
@@ -1095,9 +1099,59 @@ class Interface(QtCore.QObject):
         self.timer.timeout.connect(self.on_idle)
         self.timer.start()
 
-    def run(self, app):
-        self.window.show()
-        app.exec()
+    def random(self, same_form=False):
+        if same_form:
+            n = len(self.assembler.basic_forms)
+            sides = len(self.assembler.basic_forms[0])
+        else:
+            n = random.choice([1,1,2,2,2,3,3,3,4])
+            if self.knot:
+                sides = 6
+            else:
+                sides = random.choice([4,6])
+
+        while True:
+            if self.knot:
+                edge_counts = [ random.choice(range(2,sides+1,2))
+                                for i in range(n) ]
+            else:
+                edge_counts = [ random.choice(range(1,sides+1))
+                                for i in range(n) ]
+
+            edge_counts.sort()
+            edge_counts.reverse()
+            if edge_counts[0] != 1: break
+
+        result = [ ]
+        def zut(result):
+            result.clear()
+            previous = '1234' + 'aAbBcCdD' #* 3
+            for edge_count in edge_counts:
+                item = ['-']*(sides-edge_count)
+                for j in range(edge_count):
+                    selection = random.choice(previous)
+                    previous += Config.compatabilities[selection]*6 #12
+                    item.append(selection)
+
+                random.shuffle(item)
+                item = normalize(''.join(item))
+                if item in result: return True
+                result.append(item)
+
+            all = ''.join(result)
+            for a, b in Config.compatabilities.items():
+                if a in all and b not in all: return True
+            return False
+        while zut(result):
+            pass
+
+        self.tilings_combo.addItem(' '.join(result))
+        self.tilings_combo.setCurrentIndex(self.tilings_combo.count()-1)
+        self.reset()
+        self.randomizing = True
+
+    ###################################################################
+    # Painting and rendering.
 
     def pos(self, x,y, center=True):
         result = (self.config.x_mapper*x + self.config.y_mapper*y) * (self.scale*2)
@@ -1116,7 +1170,7 @@ class Interface(QtCore.QObject):
         for i in range(len(self.assembler.connections)):
             yy, xx = self.assembler.connections[i][:2]
             symbol = self.assembler.forms[form_number][i]
-            if symbol in ' -': continue
+            if symbol in '-': continue
 
             edge = self.pos(xx,yy,0)
             out = edge
@@ -1133,9 +1187,9 @@ class Interface(QtCore.QObject):
                 r = 0.15
 
             if symbol in 'ABCD':
-                poke = 0.3 #r
+                poke = 0.15 # 0.3 #r
             elif symbol in 'abcd':
-                poke = -0.3 #-r
+                poke = -0.15 # -0.3 #-r
             else:
                 poke = 0.0
 
@@ -1178,7 +1232,7 @@ class Interface(QtCore.QObject):
 
             if len(items)%2 != 0:
                 for i in range(len(form)):
-                    if form[i] not in ' -' and \
+                    if form[i] not in '-' and \
                        form.count(form[i]) == 1 and \
                        (Config.compatabilities[form[i]] == form[i] or \
                         form.count(Config.compatabilities[form[i]])%2 == 0):
@@ -1294,8 +1348,7 @@ class Interface(QtCore.QObject):
         painter.drawText(r, alignment, text)
         return r.right() + padding * 2
 
-    @showException
-    def on_paint(self, painter):
+    def repaint_all(self, painter):
         self.setPaintColors(painter, self.foreground, self.background)
         painter.drawRect(0, 0, self.width, self.height)
 
@@ -1333,11 +1386,10 @@ class Interface(QtCore.QObject):
             painter.drawText(0, 0, self.width, self.height, QtCore.Qt.AlignCenter | QtCore.Qt.TextWordWrap, self.error)
 
 
-    @showException
-    def on_paint_changes(self,painter):
+    def paint_changes(self, painter):
         if self.full_paint:
             self.full_paint = False
-            self.on_paint(painter)
+            self.repaint_all(painter)
 
         changes = self.assembler.changes
         self.assembler.changes = { }
@@ -1350,57 +1402,6 @@ class Interface(QtCore.QObject):
             if new is not None:
                 self.draw_poly(y,x,new, painter, False)
 
-    def random(self, same_form=False):
-        if same_form:
-            n = len(self.assembler.basic_forms)
-            sides = len(self.assembler.basic_forms[0])
-        else:
-            n = random.choice([1,1,2,2,2,3,3,3,4])
-            if self.knot:
-                sides = 6
-            else:
-                sides = random.choice([4,6])
-
-        while True:
-            if self.knot:
-                edge_counts = [ random.choice(range(2,sides+1,2))
-                                for i in range(n) ]
-            else:
-                edge_counts = [ random.choice(range(1,sides+1))
-                                for i in range(n) ]
-
-            edge_counts.sort()
-            edge_counts.reverse()
-            if edge_counts[0] != 1: break
-
-        result = [ ]
-        def merde(result):
-            result.clear()
-            previous = '1234' + 'aAbBcCdD' #* 3
-            for edge_count in edge_counts:
-                item = ['-']*(sides-edge_count)
-                for j in range(edge_count):
-                    selection = random.choice(previous)
-                    previous += Config.compatabilities[selection]*6 #12
-                    item.append(selection)
-
-                random.shuffle(item)
-                item = normalize(''.join(item))
-                if item in result: return True
-                result.append(item)
-
-            all = ''.join(result)
-            for a, b in Config.compatabilities.items():
-                if a in all and b not in all: return True
-            return False
-        while merde(result):
-            pass
-
-        self.tilings_combo.addItem(' '.join(result))
-        self.tilings_combo.setCurrentIndex(self.tilings_combo.count()-1)
-        self.reset()
-        self.randomizing = True
-
 
 # ========================================================================
 # Entry.
@@ -1408,7 +1409,9 @@ class Interface(QtCore.QObject):
 
 if __name__ == '__main__':
     app = QtWidgets.QApplication(sys.argv)
-    Interface().run(app)
+    ui = Interface()
+    ui.window.show()
+    app.exec()
     sys.exit(0)
 
     # Just some phd stuff...

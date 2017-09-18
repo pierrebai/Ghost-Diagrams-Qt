@@ -143,9 +143,25 @@ def normalize(form):
 # Some cool tile sets people have found
 
 catalogue = [
+    "dD4- 4-4- 4a4A aA-- a-A-",
+    "a4-4A- 4-4--- aA---- a--A-- 4Dd--- name=Arteries",
+    "dDc3 c-3- C--3 3---",
+    "Bbb- B--- BBb- name=Carvings",
+    "A222 222- a--1",
+    "aAa3 A--3 a--3 3---",
+    "b-22 B--2 b---",
+    "11111- 1-----",
+    "222221 222---",
+    "222221 222223 name=two-zones",
+    "aaaa11 a----- 1----- A----- A--A--*10 A--a--*3",
+    "4444 c4-4 C--4 4---",
+    "42-2 22-- 2-2-",
+    "3333-- 333-3- 33----",
+    "33333- 33----",
+    "33333- 3-3---",
+    "444444 4-4--3 4-3--3 44--4-",
     "c414*5 4444*5 C4--*5 4---",
     "1111-- 1-1---",
-    "dD4- 4-4- 4a4A aA-- a-A-",
     "c44444 444444 4C44-- c--4--/f C--4--/f border=0",
     "cC-cC-*3 c-c-4-*3 C----- name=SSSS",
     "cC-cC-*3/f c-c-4-*3/f C-----/f name=SSSS background=0 grid=0 foreground=d labels=0",
@@ -278,13 +294,9 @@ class Config:
 
         self.colors += Config.default_colors[len(self.colors):]
 
-        if len(self.forms) < 1: raise Exception("Not enough forms")
+        if len(self.forms) < 1: raise Exception("Not enough forms, need at least one.")
 
         self.probabilities = [1] * len(self.forms)
-
-        for item in self.forms:
-            if type(item) != type(""):
-                raise Exception("Form #d is not text (%s)" % (self.forms.index(item)+1, item))
 
         for i in range(len(self.forms)):
             if "/" in self.forms[i]:
@@ -293,21 +305,27 @@ class Config:
                 self.forms[i], count = self.forms[i].split("*",1)
                 self.probabilities[i] = int(count)
 
-        if len(self.forms[0]) == 4:
+        count = max([len(f) for f in self.forms])
+        if count <= 4:
+            count = 4
             self.connections = Config.connections_4
             self.x_mapper = Config.x_mapper_4
             self.y_mapper = Config.y_mapper_4
-        else:
+        elif count <= 6:
+            count = 6
             self.connections = Config.connections_6
             self.x_mapper = Config.x_mapper_6
             self.y_mapper = Config.y_mapper_6
+        else:
+            raise Exception("Too many connections specified in some items (more than 6).")
 
-        for item in self.forms:
-            if len(item) != len(self.connections):
-                raise Exception("Incorrect connection length for item #%d (%s)" % (self.forms.index(item)+1, item))
+        for i, item in enumerate(self.forms):
+            missings = count - len(item)
+            if missings:
+                self.forms[i] = item + '-' * missings
             for edge in item:
                 if edge not in Config.compatabilities:
-                    raise Exception("No compatible conection for form #%d (%s)" % (self.forms.index(item)+1, item))
+                    raise Exception("No compatible connection for form #%d (%s)." % (i+1, item))
 
 
 # ========================================================================
@@ -755,7 +773,7 @@ class Interface(QtCore.QObject):
         self.canvas.setFrameStyle(Canvas.Box)
 
         tilings_label = QtWidgets.QLabel('Tilings:')
-        tilings_label.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
+        tilings_label.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Minimum)
         tilings_label.setObjectName('tilings_label')
         self.tilings_combo = QtWidgets.QComboBox()
         self.tilings_combo.setEditable(True)
@@ -766,6 +784,7 @@ class Interface(QtCore.QObject):
         self.tilings_combo.setObjectName('tilings_combo')
 
         random_button = QtWidgets.QPushButton('Random')
+        random_button.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Minimum)
         random_button.clicked.connect(self.on_random)
 
         hbox = QtWidgets.QHBoxLayout()
@@ -798,7 +817,7 @@ class Interface(QtCore.QObject):
         self.labels_box.stateChanged.connect(self.on_labels_changed)
 
         scale_label = QtWidgets.QLabel('Size:')
-        scale_label.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
+        scale_label.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Minimum)
         self.scale_spin = QtWidgets.QSpinBox()
         self.scale_spin.setSingleStep(1)
         self.scale_spin.setRange(3, 50)
@@ -806,7 +825,7 @@ class Interface(QtCore.QObject):
         self.scale_spin.valueChanged.connect(self.on_set_scale)
 
         corner_label = QtWidgets.QLabel('Corner Radius:')
-        corner_label.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
+        corner_label.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Minimum)
         self.corner_spin = QtWidgets.QDoubleSpinBox()
         self.corner_spin.setRange(0.1, 0.9)
         self.corner_spin.setSingleStep(0.1)
@@ -814,7 +833,7 @@ class Interface(QtCore.QObject):
         self.corner_spin.valueChanged.connect(self.on_set_corner)
 
         thickness_label = QtWidgets.QLabel('Thickness:')
-        thickness_label.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
+        thickness_label.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Minimum)
         self.thickness_spin = QtWidgets.QSpinBox()
         self.thickness_spin.setSingleStep(1)
         self.thickness_spin.setRange(1, 8)
@@ -822,6 +841,7 @@ class Interface(QtCore.QObject):
         self.thickness_spin.valueChanged.connect(self.on_set_thickness)
 
         reset_button = QtWidgets.QPushButton('Restart')
+        reset_button.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Minimum)
         reset_button.clicked.connect(self.on_reset)
 
         hbox = QtWidgets.QHBoxLayout()
@@ -862,10 +882,15 @@ class Interface(QtCore.QObject):
         self.window.setWindowTitle('Ghost Diagrams')
         grid.addWidget(vframe)
 
-        self.window.setStyleSheet('''
+        self.window.setStyleSheet(
+            '''
             QLabel#tilings_label { font: 18px; }
             QComboBox#tilings_combo { font: 18px; }
-        ''')
+            QSpinBox, QDoubleSpinBox {
+                width: 60px;
+            }
+            '''
+        )
 
         def add_click_shortcut(shortcut, widget):
             sc = QtWidgets.QShortcut(QtGui.QKeySequence(shortcut), widget)
@@ -874,6 +899,10 @@ class Interface(QtCore.QObject):
         def add_focus_shortcut(shortcut, widget):
             sc = QtWidgets.QShortcut(QtGui.QKeySequence(shortcut), widget)
             sc.activated.connect(widget.setFocus)
+
+        def add_quit_shortcut(shortcut, widget):
+            sc = QtWidgets.QShortcut(QtGui.QKeySequence(shortcut), widget)
+            sc.activated.connect(widget.close)
 
         add_click_shortcut('Ctrl+F', self.fill_box)
         add_click_shortcut('Ctrl+B', self.border_box)
@@ -886,6 +915,8 @@ class Interface(QtCore.QObject):
         add_focus_shortcut('Ctrl+H', self.thickness_spin)
         add_focus_shortcut('Ctrl+C', self.corner_spin)
         add_focus_shortcut('Ctrl+T', self.tilings_combo)
+
+        add_quit_shortcut('Ctrl+Q', self.window)
 
         self.reset()
 

@@ -80,8 +80,6 @@
             support labels, use Qt instead of gtk,
             support variable probabilities, ...
 
-  TODO: bigger up/down buttons for spinners.
-
   TODO: don't backtrack areas outside current locus
         (difficulty: accidentally creating disconnected islands)
 
@@ -747,6 +745,46 @@ class Canvas(QtWidgets.QFrame):
     def resizeEvent(self, event):
         self.resizing.emit(event.size())
 
+def make_spin(label, min_val, max_val, val):
+    label = QtWidgets.QLabel(label)
+    label.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Minimum)
+    if type(min_val) == type(1):
+        spin = QtWidgets.QSpinBox()
+        spin.setSingleStep(1)
+        spin.setRange(min_val, max_val)
+        spin.setValue(val)
+    else:
+        spin = QtWidgets.QDoubleSpinBox()
+        spin.setSingleStep(0.1)
+        spin.setRange(min_val, max_val)
+        spin.setValue(val)
+    spin.setObjectName('spin')
+    spin.setFrame(True)
+    spin.setButtonSymbols(QtWidgets.QSpinBox.NoButtons)
+    spin_more = QtWidgets.QPushButton(' + ')
+    spin_more.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
+    spin_more.clicked.connect(spin.stepUp)
+    spin_more.setObjectName('more')
+    spin_less = QtWidgets.QPushButton(' - ')
+    spin_less.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
+    spin_less.clicked.connect(spin.stepDown)
+    spin_less.setObjectName('less')
+    frame = QtWidgets.QFrame()
+    hbox = QtWidgets.QHBoxLayout()
+    frame.setLayout(hbox)
+    hbox.addWidget(label)
+    hbox.addWidget(spin_more)
+    hbox.addWidget(spin)
+    hbox.addWidget(spin_less)
+    hbox.setContentsMargins(0,0,0,0)
+    hbox.setSpacing(0)
+    frame.setStyleSheet('''
+        #more { padding: 3px 4px; }
+        #less { padding: 3px 5px; }
+        #spin { width: 20px; }
+    ''')
+    return spin, frame
+
 class Interface(QtCore.QObject):
     """Main UI of the program."""
 
@@ -860,33 +898,17 @@ class Interface(QtCore.QObject):
         self.grid_box.setChecked(self.grid)
         self.grid_box.stateChanged.connect(self.on_grid_changed)
 
-
         self.labels_box = QtWidgets.QCheckBox("Show Tile Labels")
         self.labels_box.setChecked(self.labels)
         self.labels_box.stateChanged.connect(self.on_labels_changed)
 
-        scale_label = QtWidgets.QLabel('Size:')
-        scale_label.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Minimum)
-        self.scale_spin = QtWidgets.QSpinBox()
-        self.scale_spin.setSingleStep(1)
-        self.scale_spin.setRange(3, 50)
-        self.scale_spin.setValue(self.scale)
+        self.scale_spin, scale_frame = make_spin('Size:', 3, 50, self.scale)
         self.scale_spin.valueChanged.connect(self.on_set_scale)
 
-        corner_label = QtWidgets.QLabel('Corner Radius:')
-        corner_label.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Minimum)
-        self.corner_spin = QtWidgets.QDoubleSpinBox()
-        self.corner_spin.setRange(0.1, 0.9)
-        self.corner_spin.setSingleStep(0.1)
-        self.corner_spin.setValue(self.corner)
+        self.corner_spin, corner_frame = make_spin('Corner Radius:', 0.1, 0.9, self.corner)
         self.corner_spin.valueChanged.connect(self.on_set_corner)
 
-        thickness_label = QtWidgets.QLabel('Thickness:')
-        thickness_label.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Minimum)
-        self.thickness_spin = QtWidgets.QSpinBox()
-        self.thickness_spin.setSingleStep(1)
-        self.thickness_spin.setRange(1, 8)
-        self.thickness_spin.setValue(self.thickness)
+        self.thickness_spin, thickness_frame = make_spin('Thickness:', 1, 8, self.thickness)
         self.thickness_spin.valueChanged.connect(self.on_set_thickness)
 
         reset_button = QtWidgets.QPushButton('Restart')
@@ -907,12 +929,9 @@ class Interface(QtCore.QObject):
         hbox.addStretch(1)
         hbox.addWidget(reset_button)
         hbox.addStretch(1)
-        hbox.addWidget(scale_label)
-        hbox.addWidget(self.scale_spin)
-        hbox.addWidget(thickness_label)
-        hbox.addWidget(self.thickness_spin)
-        hbox.addWidget(corner_label)
-        hbox.addWidget(self.corner_spin)
+        hbox.addWidget(scale_frame)
+        hbox.addWidget(thickness_frame)
+        hbox.addWidget(corner_frame)
         hbox.addStretch(3)
 
         vbox = QtWidgets.QVBoxLayout()
@@ -932,15 +951,10 @@ class Interface(QtCore.QObject):
         self.window.setWindowTitle('Ghost Diagrams')
         grid.addWidget(vframe)
 
-        self.window.setStyleSheet(
-            '''
+        self.window.setStyleSheet('''
             QLabel#tilings_label { font: 18px; }
             QComboBox#tilings_combo { font: 18px; }
-            QSpinBox, QDoubleSpinBox {
-                width: 60px;
-            }
-            '''
-        )
+            ''')
 
         def add_click_shortcut(shortcut, widget):
             sc = QtWidgets.QShortcut(QtGui.QKeySequence(shortcut), widget)

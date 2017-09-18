@@ -144,6 +144,10 @@ def normalize(form):
 
 catalogue = [
     "dD4- 4-4- 4a4A aA-- a-A-",
+    "bC--B-*7/0 B/f c---b-/0 border=0 name=Labyrinth",
+    "a44A 4-4- Aa- B-4b  bB name=PCB",
+    "aaA-aA A---a A-a A",
+    "2ddDDD/0d0 2d2d2/f60 dDDDd/0b0 foreground=0a0 name=flowers border=0",
     "a4-4A- 4-4--- aA---- a--A-- 4Dd--- name=Arteries",
     "31--1- 111--- 11----",
     "dDc3 c-3- C--3 3---",

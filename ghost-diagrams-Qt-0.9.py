@@ -753,18 +753,34 @@ class Interface(QtCore.QObject):
     color_schemes = {
         'No Color Scheme'   : None,
         'Autumn'            : 'f3a800 fc4d41 790005 dd662e ffcb50',
+        'Pumpkins'          : 'ff4e00 8ea604 f5bb00 ec9f05 bf3100',
+        'Earth Tones'       : '220901 621708 941b0c bc3908 f6aa1c',
+        'Primaries'         : 'ff595e ffca3a 8ac926 1982c4 6a4c93',
         'Pastel Greens'     : '3ab795 7ad3a8 a0e8af ffcf56 edead0',
         'Tender Forest'     : '8b4b39 a86544 b5e391 d8f0ad fbf1eb',
         'Teals'             : '98e2c6 51a3a3 e3e3e3 110b11 23b5d3',
         'Blues'             : 'd3ebf7 8c9fa7 194151 35a8df b2d8f0',
         'Beach Towel'       : 'e67b03 c7d300 428bca b09e99 fee9e1',
         'Sunrise'           : 'ef798a f7a9a8 ffd289 facc6b ffd131',
+        'Sky and Sun'       : '006ba6 0496ff ffbc42 d81159 8f2d56',
         'Deco Pool'         : '247ba0 70c1b3 b2dbbf f3ffbd ff1654',
         'Bright Toy'        : '5bc0eb fde74c 9bc53d e55934 fa7921',
         'Grapevine'         : '3d315b 444b6e 708b75 9ab87a f8f991',
+        'Cold to Hot'       : '01295f 437f97 849324 ffb30f fd151b',
         'Warmth Scale'      : '264653 2a9d8f e9c46a f4a261 e76f51',
         'Ocean View'        : '06aed5 086788 f0c808 fff1d0 dd1c1a',
         'Make Up'           : 'd8e2dc ffe5d9 ffcad4 f4acb7 9d8189',
+        'Oranges'           : '003049 d62828 f77f00 fcbf49 eae2b7',
+        'Green Mosaic'      : 'faf3dd c8d5b9 8fc0a9 68b0ab 4a7c59',
+        'Fruits'            : '1b998b 2d3047 fffd82 ff9b71 e84855',
+        'Baby Powder'       : '7bdff2 b2f7ef eff7f6 f7d6e0 f2b5d4',
+        'Ceramics'          : 'b8d8ba d9dbbc fcddbc ef959d 69585f',
+        'River Grass'       : '05668d 427aa1 ebf2fa 679436 a5be00',
+        'Lapis Lazuli'      : '03256c 2541b2 1768ac 06bee1 05c1d3',
+        'Swimming Pool'     : '07beb8 3dccc7 68d8d6 9ceaef c4fff9',
+        'Oranges'           : 'cc5803 e2711d ff9505 ffb627 ffc971',
+        'Plump'             : '565264 706677 a6808c ccb7ae d6cfcb',
+        'Cherries'          : '4f000b 720026 ce4257 ff7f51 ff9b54',
     }
 
     def __init__(self):
@@ -822,7 +838,7 @@ class Interface(QtCore.QObject):
         hbox.addWidget(random_button)
 
         self.colors_combo = QtWidgets.QComboBox()
-        self.colors_combo.setMaxVisibleItems(25)
+        self.colors_combo.setMaxVisibleItems(40)
         for name in Interface.color_schemes:
             self.colors_combo.addItem(name)
         self.colors_combo.currentIndexChanged.connect(self.on_color_scheme_changed)
@@ -984,7 +1000,7 @@ class Interface(QtCore.QObject):
 
     @showException
     def on_color_scheme_changed(self, index):
-        self.set_color_scheme(self.colors_combo.currentText())
+        self.apply_current_color_scheme()
         self.full_paint = True
         self.canvas.update()
 
@@ -1158,6 +1174,8 @@ class Interface(QtCore.QObject):
         self.foreground = alloc_color(self.config.foreground)
         self.colors = [ alloc_color(item) for item in self.config.colors ]
 
+        self.apply_current_color_scheme()
+
         point_set = { }
         yr = int( self.height/self.scale/4 )
         xr = int( self.width/self.scale/4 )
@@ -1243,6 +1261,9 @@ class Interface(QtCore.QObject):
 
     ###################################################################
     # Painting and rendering.
+
+    def apply_current_color_scheme(self):
+        self.set_color_scheme(self.colors_combo.currentText())
 
     def set_color_scheme(self, scheme):
         if scheme not in Interface.color_schemes:

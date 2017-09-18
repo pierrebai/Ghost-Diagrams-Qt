@@ -78,7 +78,9 @@
             Use psyco if available
      0.9 -- Better parsing, simplified fornat, better error report,
             support labels, use Qt instead of gtk,
-            support variable probabilities.
+            support variable probabilities, ...
+
+  TODO: bigger up/down buttons for spinners.
 
   TODO: don't backtrack areas outside current locus
         (difficulty: accidentally creating disconnected islands)
@@ -391,14 +393,20 @@ def parse_color(self, name, text):
     setattr(self, name, val)
     return True
 
+def parse_colors(name, val, sep=','):
+    new_colors = []
+    for i, color in enumerate(val.split(sep)):
+        if not all([c in '0123456789abcdefABCDEF' for c in color]):
+            raise Exception('Color description "%s" for %s is not in hexadecimal.' %(color, name))
+        new_colors.append(color)
+    return new_colors
+
 def parse_colors_array(self, name, text):
     val = parse_common(name, text)
     if not val:
         return False
-    for i, color in enumerate(val.split(',')):
-        if not all([c in '0123456789abcdefABCDEF' for c in color]):
-            raise Exception('Color description "%s" for %s is not in hexadecimal.' %(color, name))
-        self.colors[i] = color
+    new_colors = parse_colors(name, val)
+    self.colors[0:len(new_colors)] = new_colors
     return True
 
 def parse_config(self, text):
@@ -739,9 +747,25 @@ class Canvas(QtWidgets.QFrame):
     def resizeEvent(self, event):
         self.resizing.emit(event.size())
 
-
 class Interface(QtCore.QObject):
     """Main UI of the program."""
+
+    color_schemes = {
+        'No Color Scheme'   : None,
+        'Autumn'            : 'f3a800 fc4d41 790005 dd662e ffcb50',
+        'Pastel Greens'     : '3ab795 7ad3a8 a0e8af ffcf56 edead0',
+        'Tender Forest'     : '8b4b39 a86544 b5e391 d8f0ad fbf1eb',
+        'Teals'             : '98e2c6 51a3a3 e3e3e3 110b11 23b5d3',
+        'Blues'             : 'd3ebf7 8c9fa7 194151 35a8df b2d8f0',
+        'Beach Towel'       : 'e67b03 c7d300 428bca b09e99 fee9e1',
+        'Sunrise'           : 'ef798a f7a9a8 ffd289 facc6b ffd131',
+        'Deco Pool'         : '247ba0 70c1b3 b2dbbf f3ffbd ff1654',
+        'Bright Toy'        : '5bc0eb fde74c 9bc53d e55934 fa7921',
+        'Grapevine'         : '3d315b 444b6e 708b75 9ab87a f8f991',
+        'Warmth Scale'      : '264653 2a9d8f e9c46a f4a261 e76f51',
+        'Ocean View'        : '06aed5 086788 f0c808 fff1d0 dd1c1a',
+        'Make Up'           : 'd8e2dc ffe5d9 ffcad4 f4acb7 9d8189',
+    }
 
     def __init__(self):
         QtCore.QObject.__init__(self)
@@ -777,6 +801,7 @@ class Interface(QtCore.QObject):
         tilings_label.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Minimum)
         tilings_label.setObjectName('tilings_label')
         self.tilings_combo = QtWidgets.QComboBox()
+        self.tilings_combo.setMaxVisibleItems(25)
         self.tilings_combo.setEditable(True)
         self.tilings_combo.completer().setCaseSensitivity(QtCore.Qt.CaseSensitive)
         for item in catalogue:
@@ -795,6 +820,13 @@ class Interface(QtCore.QObject):
         hbox.addWidget(tilings_label)
         hbox.addWidget(self.tilings_combo)
         hbox.addWidget(random_button)
+
+        self.colors_combo = QtWidgets.QComboBox()
+        self.colors_combo.setMaxVisibleItems(25)
+        for name in Interface.color_schemes:
+            self.colors_combo.addItem(name)
+        self.colors_combo.currentIndexChanged.connect(self.on_color_scheme_changed)
+        self.colors_combo.setObjectName('colors_combo')
 
         self.fill_box = QtWidgets.QCheckBox("Filled")
         self.fill_box.setChecked(self.fill)
@@ -850,6 +882,7 @@ class Interface(QtCore.QObject):
         hframe = QtWidgets.QFrame()
         hframe.setLayout(hbox)
         hbox.addStretch(3)
+        hbox.addWidget(self.colors_combo)
         hbox.addWidget(self.fill_box)
         hbox.addWidget(self.border_box)
         hbox.addWidget(self.knot_box)
@@ -946,6 +979,12 @@ class Interface(QtCore.QObject):
     @showException
     def on_set_thickness(self, value):
         self.thickness = value
+        self.full_paint = True
+        self.canvas.update()
+
+    @showException
+    def on_color_scheme_changed(self, index):
+        self.set_color_scheme(self.colors_combo.currentText())
         self.full_paint = True
         self.canvas.update()
 
@@ -1204,6 +1243,16 @@ class Interface(QtCore.QObject):
 
     ###################################################################
     # Painting and rendering.
+
+    def set_color_scheme(self, scheme):
+        if scheme not in Interface.color_schemes:
+            return
+        colors = Interface.color_schemes[scheme]
+        if not colors:
+            return
+        new_colors = parse_colors(scheme, colors, ' ')
+        new_colors = [alloc_color(c) for c in new_colors]
+        self.colors[0:len(new_colors)] = new_colors
 
     def pos(self, x,y, center=True):
         result = (self.config.x_mapper*x + self.config.y_mapper*y) * (self.scale*2)

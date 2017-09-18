@@ -333,6 +333,7 @@ class Config:
 # Config parser. Convert the text description into a Config.
 
 def alloc_color(text):
+    """Convert a text description of a color in hexadecimal into a QColor."""
     comp = []
     steps = max(1,len(text)//3)
     for i in range(0,len(text),steps):
@@ -345,6 +346,7 @@ def alloc_color(text):
         return QtGui.QColor(128, 128, 128)
 
 def parse_common(name, text):
+    """Check if the given text contains an assignment to the given named option, return the value or None."""
     if '=' not in text:
         return None
     if name not in text:
@@ -355,6 +357,7 @@ def parse_common(name, text):
     return val
 
 def parse_bool(self, name, text):
+    """Check if the given text contains a boolean assignment to the given named option, return True if successfully parsed."""
     val = parse_common(name, text)
     if not val:
         return False
@@ -362,6 +365,7 @@ def parse_bool(self, name, text):
     return True
 
 def parse_float(self, name, text):
+    """Check if the given text contains a real number assignment to the given named option, return True if successfully parsed."""
     val = parse_common(name, text)
     if not val:
         return False
@@ -369,6 +373,7 @@ def parse_float(self, name, text):
     return True
 
 def parse_int(self, name, text):
+    """Check if the given text contains an integer number assignment to the given named option, return True if successfully parsed."""
     val = parse_common(name, text)
     if not val:
         return False
@@ -376,6 +381,7 @@ def parse_int(self, name, text):
     return True
 
 def parse_text(self, name, text):
+    """Check if the given text contains an assignment to the given named option, return True if successfully parsed."""
     val = parse_common(name, text)
     if not val:
         return False
@@ -383,6 +389,7 @@ def parse_text(self, name, text):
     return True
 
 def parse_color(self, name, text):
+    """Check if the given text contains a color assignment to the given named option, return True if successfully parsed."""
     val = parse_common(name, text)
     if not val:
         return False
@@ -391,15 +398,17 @@ def parse_color(self, name, text):
     setattr(self, name, val)
     return True
 
-def parse_colors(name, val, sep=','):
+def parse_colors(name, text, sep=','):
+    """Convert the given text into separate color text."""
     new_colors = []
-    for i, color in enumerate(val.split(sep)):
+    for i, color in enumerate(text.split(sep)):
         if not all([c in '0123456789abcdefABCDEF' for c in color]):
             raise Exception('Color description "%s" for %s is not in hexadecimal.' %(color, name))
         new_colors.append(color)
     return new_colors
 
 def parse_colors_array(self, name, text):
+    """Check if the given text contains a multiple colors assignment to the given named option, return True if successfully parsed."""
     val = parse_common(name, text)
     if not val:
         return False
@@ -408,6 +417,7 @@ def parse_colors_array(self, name, text):
     return True
 
 def parse_config(self, text):
+    """Convert the given text into the known options and ssign them to self. Return the array of text not matching options."""
     parsers = {
         'border'        : parse_bool,
         'fill'          : parse_bool,
@@ -708,11 +718,11 @@ class Assembler:
 
 
 # ========================================================================
-# UI
+# UI Helpers
 
 
 def showException(f):
-    """Letting Python exception through to Qt crashes Python, so keep them contained."""
+    """Decorator to keep Python exceptions contained, to avoid crashing Qt."""
 
     @functools.wraps(f)
     def wrapper(self, *args, **kw):
@@ -722,6 +732,92 @@ def showException(f):
             QtWidgets.QErrorMessage(self.window).showMessage(str(e))
 
     return wrapper
+
+def make_spin(label, min_val, max_val, val, on_changed):
+    """Create a spin-box UI to adjust numbers."""
+    label = QtWidgets.QLabel(label)
+    label.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Minimum)
+    if type(min_val) == type(1):
+        spin = QtWidgets.QSpinBox()
+        spin.setSingleStep(1)
+        spin.setRange(min_val, max_val)
+        spin.setValue(val)
+    else:
+        spin = QtWidgets.QDoubleSpinBox()
+        spin.setSingleStep(0.1)
+        spin.setRange(min_val, max_val)
+        spin.setValue(val)
+    spin.setObjectName('spin')
+    spin.setFrame(True)
+    spin.setButtonSymbols(QtWidgets.QSpinBox.NoButtons)
+    spin.valueChanged.connect(on_changed)
+    spin_more = QtWidgets.QPushButton(' + ')
+    spin_more.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
+    spin_more.clicked.connect(spin.stepUp)
+    spin_more.setObjectName('more')
+    spin_less = QtWidgets.QPushButton(' - ')
+    spin_less.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
+    spin_less.clicked.connect(spin.stepDown)
+    spin_less.setObjectName('less')
+    frame = make_hbox(0, label, spin_more, spin, spin_less, spacing=0)
+    frame.setStyleSheet('''
+        #more { padding: 3px 4px; }
+        #less { padding: 3px 5px; }
+        #spin { width: 20px; }
+    ''')
+    return spin, frame
+
+def make_check(label, val, on_changed):
+    """Create a check-box toggle UI."""
+    check = QtWidgets.QCheckBox(label)
+    check.setChecked(val)
+    check.stateChanged.connect(on_changed)
+    return check
+
+def make_box(margins, horiz, *widgets, spacing=None):
+    """Create a container box for other UI elements."""
+    if horiz:
+        box = QtWidgets.QHBoxLayout()
+    else:
+        box = QtWidgets.QVBoxLayout()
+    box.setContentsMargins(margins, margins, margins, margins)
+    if spacing is not None:
+        box.setSpacing(spacing)
+    frame = QtWidgets.QFrame()
+    frame.setLayout(box)
+    for w in widgets:
+        if type(w) == type(1):
+            box.addStretch(w)
+        else:
+            box.addWidget(w)
+    return frame
+
+def make_hbox(margins, *widgets, spacing=None):
+    """Create a horizontal container box for other UI elements."""
+    return make_box(margins, True, *widgets, spacing=spacing)
+
+def make_vbox(margins, *widgets, spacing=None):
+    """Create a vertical container box for other UI elements."""
+    return make_box(margins, False, *widgets, spacing=spacing)
+
+def add_click_shortcut(shortcut, widget):
+    """Add a keyboard shortcut that simulate a click."""
+    sc = QtWidgets.QShortcut(QtGui.QKeySequence(shortcut), widget)
+    sc.activated.connect(widget.click)
+
+def add_focus_shortcut(shortcut, widget):
+    """Add a keyboard shortcut that gives focus to an element."""
+    sc = QtWidgets.QShortcut(QtGui.QKeySequence(shortcut), widget)
+    sc.activated.connect(widget.setFocus)
+
+def add_quit_shortcut(shortcut, widget):
+    """Add a keyboard shortcut that closes an element, usually a window."""
+    sc = QtWidgets.QShortcut(QtGui.QKeySequence(shortcut), widget)
+    sc.activated.connect(widget.close)
+
+
+# ========================================================================
+# UI
 
 
 class Canvas(QtWidgets.QFrame):
@@ -745,45 +841,6 @@ class Canvas(QtWidgets.QFrame):
     def resizeEvent(self, event):
         self.resizing.emit(event.size())
 
-def make_spin(label, min_val, max_val, val):
-    label = QtWidgets.QLabel(label)
-    label.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Minimum)
-    if type(min_val) == type(1):
-        spin = QtWidgets.QSpinBox()
-        spin.setSingleStep(1)
-        spin.setRange(min_val, max_val)
-        spin.setValue(val)
-    else:
-        spin = QtWidgets.QDoubleSpinBox()
-        spin.setSingleStep(0.1)
-        spin.setRange(min_val, max_val)
-        spin.setValue(val)
-    spin.setObjectName('spin')
-    spin.setFrame(True)
-    spin.setButtonSymbols(QtWidgets.QSpinBox.NoButtons)
-    spin_more = QtWidgets.QPushButton(' + ')
-    spin_more.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
-    spin_more.clicked.connect(spin.stepUp)
-    spin_more.setObjectName('more')
-    spin_less = QtWidgets.QPushButton(' - ')
-    spin_less.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
-    spin_less.clicked.connect(spin.stepDown)
-    spin_less.setObjectName('less')
-    frame = QtWidgets.QFrame()
-    hbox = QtWidgets.QHBoxLayout()
-    frame.setLayout(hbox)
-    hbox.addWidget(label)
-    hbox.addWidget(spin_more)
-    hbox.addWidget(spin)
-    hbox.addWidget(spin_less)
-    hbox.setContentsMargins(0,0,0,0)
-    hbox.setSpacing(0)
-    frame.setStyleSheet('''
-        #more { padding: 3px 4px; }
-        #less { padding: 3px 5px; }
-        #spin { width: 20px; }
-    ''')
-    return spin, frame
 
 class Interface(QtCore.QObject):
     """Main UI of the program."""
@@ -823,6 +880,8 @@ class Interface(QtCore.QObject):
 
     def __init__(self):
         QtCore.QObject.__init__(self)
+
+        # Data
         self.iteration = 0
         self.width = 1000
         self.height = 800
@@ -843,6 +902,7 @@ class Interface(QtCore.QObject):
         self.corner = 0.5
         self.full_paint = True
 
+        # UI
         self.canvas = Canvas()
         self.canvas.painting.connect(self.on_paint)
         self.canvas.resizing.connect(self.on_size)
@@ -867,13 +927,7 @@ class Interface(QtCore.QObject):
         random_button.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Minimum)
         random_button.clicked.connect(self.on_random)
 
-        hbox = QtWidgets.QHBoxLayout()
-        hbox.setContentsMargins(0,0,0,0)
-        tilings_frame = QtWidgets.QFrame()
-        tilings_frame.setLayout(hbox)
-        hbox.addWidget(tilings_label)
-        hbox.addWidget(self.tilings_combo)
-        hbox.addWidget(random_button)
+        tilings_frame = make_hbox(0, tilings_label, self.tilings_combo, random_button)
 
         self.colors_combo = QtWidgets.QComboBox()
         self.colors_combo.setMaxVisibleItems(40)
@@ -882,65 +936,26 @@ class Interface(QtCore.QObject):
         self.colors_combo.currentIndexChanged.connect(self.on_color_scheme_changed)
         self.colors_combo.setObjectName('colors_combo')
 
-        self.fill_box = QtWidgets.QCheckBox("Filled")
-        self.fill_box.setChecked(self.fill)
-        self.fill_box.stateChanged.connect(self.on_fill_changed)
+        self.fill_box   = make_check("Filled", self.fill, self.on_fill_changed)
+        self.border_box = make_check("Borders", self.border, self.on_border_changed)
+        self.knot_box   = make_check("Knot", self.knot, self.on_knot_changed)
+        self.grid_box   = make_check("Grid", self.grid, self.on_grid_changed)
+        self.labels_box = make_check("Show Tile Labels", self.labels, self.on_labels_changed)
 
-        self.border_box = QtWidgets.QCheckBox("Borders")
-        self.border_box.setChecked(self.border)
-        self.border_box.stateChanged.connect(self.on_border_changed)
-
-        self.knot_box = QtWidgets.QCheckBox("Knot")
-        self.knot_box.setChecked(self.knot)
-        self.knot_box.stateChanged.connect(self.on_knot_changed)
-
-        self.grid_box = QtWidgets.QCheckBox("Grid")
-        self.grid_box.setChecked(self.grid)
-        self.grid_box.stateChanged.connect(self.on_grid_changed)
-
-        self.labels_box = QtWidgets.QCheckBox("Show Tile Labels")
-        self.labels_box.setChecked(self.labels)
-        self.labels_box.stateChanged.connect(self.on_labels_changed)
-
-        self.scale_spin, scale_frame = make_spin('Size:', 3, 50, self.scale)
-        self.scale_spin.valueChanged.connect(self.on_set_scale)
-
-        self.corner_spin, corner_frame = make_spin('Corner Radius:', 0.1, 0.9, self.corner)
-        self.corner_spin.valueChanged.connect(self.on_set_corner)
-
-        self.thickness_spin, thickness_frame = make_spin('Thickness:', 1, 8, self.thickness)
-        self.thickness_spin.valueChanged.connect(self.on_set_thickness)
+        self.scale_spin,     scale_frame     = make_spin('Size:', 3, 50, self.scale, self.on_set_scale)
+        self.corner_spin,    corner_frame    = make_spin('Corner Radius:', 0.1, 0.9, self.corner, self.on_set_corner)
+        self.thickness_spin, thickness_frame = make_spin('Thickness:', 1, 8, self.thickness, self.on_set_thickness)
 
         reset_button = QtWidgets.QPushButton('Restart')
         reset_button.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Minimum)
         reset_button.clicked.connect(self.on_reset)
 
-        hbox = QtWidgets.QHBoxLayout()
-        hbox.setContentsMargins(2,2,2,2)
-        hframe = QtWidgets.QFrame()
-        hframe.setLayout(hbox)
-        hbox.addStretch(3)
-        hbox.addWidget(self.colors_combo)
-        hbox.addWidget(self.fill_box)
-        hbox.addWidget(self.border_box)
-        hbox.addWidget(self.knot_box)
-        hbox.addWidget(self.grid_box)
-        hbox.addWidget(self.labels_box)
-        hbox.addStretch(1)
-        hbox.addWidget(reset_button)
-        hbox.addStretch(1)
-        hbox.addWidget(scale_frame)
-        hbox.addWidget(thickness_frame)
-        hbox.addWidget(corner_frame)
-        hbox.addStretch(3)
+        hframe = make_hbox(2,
+            3, self.colors_combo, self.fill_box, self.border_box, self.knot_box, self.grid_box, self.labels_box,
+            1, reset_button,
+            1, scale_frame, thickness_frame, corner_frame, 3)
 
-        vbox = QtWidgets.QVBoxLayout()
-        vbox.setContentsMargins(4,4,4,4)
-        vframe = QtWidgets.QFrame()
-        vframe.setLayout(vbox)
-        vbox.addWidget(tilings_frame)
-        vbox.addWidget(hframe)
-        vbox.addWidget(self.canvas)
+        vframe = make_vbox(4, tilings_frame, hframe, self.canvas)
 
         self.window = QtWidgets.QWidget()
         grid = QtWidgets.QGridLayout()
@@ -956,18 +971,7 @@ class Interface(QtCore.QObject):
             QComboBox#tilings_combo { font: 18px; }
             ''')
 
-        def add_click_shortcut(shortcut, widget):
-            sc = QtWidgets.QShortcut(QtGui.QKeySequence(shortcut), widget)
-            sc.activated.connect(widget.click)
-
-        def add_focus_shortcut(shortcut, widget):
-            sc = QtWidgets.QShortcut(QtGui.QKeySequence(shortcut), widget)
-            sc.activated.connect(widget.setFocus)
-
-        def add_quit_shortcut(shortcut, widget):
-            sc = QtWidgets.QShortcut(QtGui.QKeySequence(shortcut), widget)
-            sc.activated.connect(widget.close)
-
+        # Shortcuts
         add_click_shortcut('Ctrl+F', self.fill_box)
         add_click_shortcut('Ctrl+B', self.border_box)
         add_click_shortcut('Ctrl+K', self.knot_box)
@@ -977,9 +981,8 @@ class Interface(QtCore.QObject):
         add_click_shortcut('Ctrl+R', random_button)
         add_focus_shortcut('Ctrl+S', self.scale_spin)
         add_focus_shortcut('Ctrl+H', self.thickness_spin)
-        add_focus_shortcut('Ctrl+C', self.corner_spin)
+        add_focus_shortcut('Ctrl+O', self.corner_spin)
         add_focus_shortcut('Ctrl+T', self.tilings_combo)
-
         add_quit_shortcut('Ctrl+Q', self.window)
 
         self.reset()
@@ -1064,6 +1067,7 @@ class Interface(QtCore.QObject):
 
     @showException
     def on_idle(self):
+        """This is where the processing to generate a tiling is done."""
         if not self.assembler.iterate():
             self.timer.stop()
             self.timer = None

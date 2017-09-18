@@ -145,6 +145,7 @@ def normalize(form):
 catalogue = [
     "dD4- 4-4- 4a4A aA-- a-A-",
     "a4-4A- 4-4--- aA---- a--A-- 4Dd--- name=Arteries",
+    "31--1- 111--- 11----",
     "dDc3 c-3- C--3 3---",
     "Bbb- B--- BBb- name=Carvings",
     "A222 222- a--1",

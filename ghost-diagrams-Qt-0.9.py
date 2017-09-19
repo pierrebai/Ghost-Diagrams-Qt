@@ -80,6 +80,11 @@
             support labels, use Qt instead of gtk,
             support variable probabilities, ...
 
+  TODO: save/export
+        don't reset on resize (add/remove space where needed.)
+        revert the UI state when switching diagrams when the diagram was forcing some state.
+        (IOW, the state forced by a diagram is temporary.)
+
   TODO: don't backtrack areas outside current locus
         (difficulty: accidentally creating disconnected islands)
 

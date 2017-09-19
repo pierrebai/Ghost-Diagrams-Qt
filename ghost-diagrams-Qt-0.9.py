@@ -308,7 +308,7 @@ class Config:
                 self.forms[i], self.colors[i%len(self.colors)] = self.forms[i].split("/",1)
             if "*" in self.forms[i]:
                 self.forms[i], count = self.forms[i].split("*",1)
-                self.probabilities[i] = int(count)
+                self.probabilities[i] = abs(float(count))
 
         count = max([len(f) for f in self.forms])
         if count <= 4:

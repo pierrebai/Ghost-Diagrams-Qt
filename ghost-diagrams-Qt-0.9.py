@@ -196,7 +196,7 @@ catalogue = [
     "Aaa A1A a-1AAa",
     "aA1--- AA- a--2",
     "Aa-Cc c C",
-    "aa-aa/fff AA/fff A--A/fff grid=0 border=0 thickness=0.3",
+    "aa-aa/fff AA/fff A--A/fff grid=0 border=0 thickness=0.3 background=2",
     "aA-a2- 2A 2--A",
     "AA-A a-a-a-",
     "aA---- AaAa--",
@@ -532,7 +532,7 @@ class Assembler:
     def options(self, y,x):
         pattern = self.get_pattern(y,x)
         if pattern in self.options_cache:
-            result = self.options_cache[pattern]
+            return self.options_cache[pattern]
 
         result = [ ]
         for i in range(len(self.forms)):

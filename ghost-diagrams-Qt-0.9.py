@@ -302,8 +302,6 @@ class Config:
 
         parse_config(self, cfg)
 
-        self.colors += Config.default_colors[len(self.colors):]
-
         if len(self.forms) < 1: raise Exception("Not enough forms, need at least one.")
 
         self.probabilities = [1] * len(self.forms)
@@ -1105,16 +1103,16 @@ class Interface(QtCore.QObject):
 
         self.iteration += 1
 
-        if self.randomizing and self.iteration == 100:
+        if self.randomizing and (self.iteration == 100 or not self.timer):
             self.randomizing = False
 
             forms_present = { }
             for item in self.assembler.tiles.values():
                 forms_present[self.assembler.form_id[item]] = 1
 
-            #if len(self.assembler.tiles) < 10 \
-            #   or len(forms_present) < len(self.assembler.basic_forms):
-            #    self.random(True)
+            if len(self.assembler.tiles) < 10 \
+               or len(forms_present) < len(self.assembler.basic_forms):
+                self.random(True)
 
         if self.iteration % 8 == 0:
             if self.iteration % 1000 == 0:
@@ -1251,9 +1249,10 @@ class Interface(QtCore.QObject):
         self.full_paint = True
         self.assembler = Assembler(self.config.connections, Config.compatabilities,
                                    self.config.forms, self.config.probabilities, point_set)
-        self.timer = QtCore.QTimer()
-        self.timer.timeout.connect(self.on_idle)
-        self.timer.start()
+        if not self.timer:
+            self.timer = QtCore.QTimer()
+            self.timer.timeout.connect(self.on_idle)
+            self.timer.start()
 
     def random(self, same_form=False):
         if same_form:
@@ -1341,7 +1340,7 @@ class Interface(QtCore.QObject):
             symbol = self.assembler.forms[form_number][i]
             if symbol in '-': continue
 
-            edge = self.pos(xx,yy,0)
+            edge = self.pos(xx, yy, False)
             out = edge
             left = out.left90()
 
@@ -1356,9 +1355,9 @@ class Interface(QtCore.QObject):
                 r = 0.15
 
             if symbol in 'ABCD':
-                poke = 0.15 # 0.3 #r
+                poke = 0.3 #r
             elif symbol in 'abcd':
-                poke = -0.15 # -0.3 #-r
+                poke = -0.3 #-r
             else:
                 poke = 0.0
 

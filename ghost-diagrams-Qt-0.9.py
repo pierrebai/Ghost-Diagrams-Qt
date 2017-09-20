@@ -82,8 +82,6 @@
 
   TODO: save/export
         don't reset on resize (add/remove space where needed.)
-        revert the UI state when switching diagrams when the diagram was forcing some state.
-        (IOW, the state forced by a diagram is temporary.)
 
   TODO: don't backtrack areas outside current locus
         (difficulty: accidentally creating disconnected islands)
@@ -792,7 +790,7 @@ def make_spin(label, min_val, max_val, val, on_changed):
 def make_check(label, val, on_changed):
     """Create a check-box toggle UI."""
     check = QtWidgets.QCheckBox(label)
-    check.setChecked(val)
+    check.setChecked(bool(val))
     check.stateChanged.connect(on_changed)
     return check
 
@@ -868,6 +866,30 @@ class Canvas(QtWidgets.QFrame):
     def resizeEvent(self, event):
         self.resizing.emit(event.size())
 
+class ConfigOverrideVal:
+    """Holds a value which is user-controlled and a optional override value from Config."""
+
+    def __init__(self, val):
+        """Starts with only a user value."""
+        self.user_val = val
+        self.config_val = None
+
+    def __bool__(self):
+        """If there is a config value, use that, otherwise use the user value."""
+        if self.config_val is None:
+            return self.user_val
+        else:
+            return self.config_val
+
+    def setFromUser(self, val):
+        """When set by the user, get rid of the config value; from now on the user has decided."""
+        self.config_val = None
+        self.user_val = val
+
+    def setFromConfig(self, val):
+        """When set from the config, set the config value but leave the user value intact."""
+        self.config_val = val
+
 
 class Interface(QtCore.QObject):
     """Main UI of the program."""
@@ -914,10 +936,11 @@ class Interface(QtCore.QObject):
         self.height = 800
         self.scale = 8
         self.thickness = 1
-        self.knot = False
-        self.border = True
-        self.fill = True
-        self.grid = True
+        self.knot = ConfigOverrideVal(False)
+        self.border = ConfigOverrideVal(True)
+        self.fill = ConfigOverrideVal(True)
+        self.grid = ConfigOverrideVal(True)
+        self.labels = ConfigOverrideVal(True)
         self.randomizing = False
         self.iteration = 0
         self.shapes = { }
@@ -925,9 +948,9 @@ class Interface(QtCore.QObject):
         self.assembler = None
         self.timer = None
         self.error = None
-        self.labels = True
         self.corner = 0.5
         self.full_paint = True
+        self.ignore_from_ui = False
 
         # UI
         self.canvas = Canvas()
@@ -1051,19 +1074,25 @@ class Interface(QtCore.QObject):
 
     @showException
     def on_fill_changed(self, state):
-        self.fill = state
+        if self.ignore_from_ui:
+            return
+        self.fill.setFromUser(bool(state))
         self.full_paint = True
         self.canvas.update()
 
     @showException
     def on_border_changed(self, state):
-        self.border = state
+        if self.ignore_from_ui:
+            return
+        self.border.setFromUser(bool(state))
         self.full_paint = True
         self.canvas.update()
 
     @showException
     def on_knot_changed(self, state):
-        self.knot = state
+        if self.ignore_from_ui:
+            return
+        self.knot.setFromUser(bool(state))
         self.shapes = {}
         self.polys = {}
         self.full_paint = True
@@ -1071,13 +1100,17 @@ class Interface(QtCore.QObject):
 
     @showException
     def on_labels_changed(self, state):
-        self.labels = state
+        if self.ignore_from_ui:
+            return
+        self.labels.setFromUser(bool(state))
         self.full_paint = True
         self.canvas.update()
 
     @showException
     def on_grid_changed(self, state):
-        self.grid = state
+        if self.ignore_from_ui:
+            return
+        self.grid.setFromUser(bool(state))
         self.full_paint = True
         self.canvas.update()
 
@@ -1127,45 +1160,28 @@ class Interface(QtCore.QObject):
     ###################################################################
     # Data -> UI.
 
-    def set_grid(self, value):
-        if value is None:
-            return
-        self.grid = value
-        self.grid_box.setChecked(self.grid)
+    def set_config_val(self, val, ui, new_val):
+        val.setFromConfig(new_val)
+        self.ignore_from_ui = True
+        ui.setChecked(bool(val))
+        self.ignore_from_ui = False
         self.full_paint = True
         self.canvas.update()
+
+    def set_grid(self, value):
+        self.set_config_val(self.grid, self.grid_box, value)
 
     def set_knot(self, value):
-        if value is None:
-            return
-        self.knot = value
-        self.knot_box.setChecked(self.knot)
-        self.full_paint = True
-        self.canvas.update()
+        self.set_config_val(self.knot, self.knot_box, value)
 
     def set_labels(self, value):
-        if value is None:
-            return
-        self.labels = value
-        self.labels_box.setChecked(self.labels)
-        self.full_paint = True
-        self.canvas.update()
+        self.set_config_val(self.labels, self.labels_box, value)
 
     def set_border(self, value):
-        if value is None:
-            return
-        self.border = value
-        self.border_box.setChecked(self.border)
-        self.full_paint = True
-        self.canvas.update()
+        self.set_config_val(self.border, self.border_box, value)
 
     def set_fill(self, value):
-        if value is None:
-            return
-        self.fill = value
-        self.fill_box.setChecked(self.fill)
-        self.full_paint = True
-        self.canvas.update()
+        self.set_config_val(self.fill, self.fill_box, value)
 
     def set_scale(self, value):
         if value is None:
@@ -1197,6 +1213,7 @@ class Interface(QtCore.QObject):
         self.height = sz.height()
         self.full_paint = True
         self.canvas.update()
+
 
     ###################################################################
     # Starting a new tiling.

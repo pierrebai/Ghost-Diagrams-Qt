@@ -263,7 +263,8 @@ class Config:
     compatabilities = {
         '-':'-',
         'A':'a', 'a':'A', 'B':'b', 'b':'B', 'c':'C', 'C':'c', 'd':'D', 'D':'d',
-        '1':'1', '2':'2', '3':'3', '4':'4'
+        '1':'1', '2':'2', '3':'3', '4':'4',
+        '.':'.'
     }
 
     # Hexagonal connection pattern:
@@ -1338,7 +1339,7 @@ class Interface(QtCore.QObject):
         for i in range(len(self.assembler.connections)):
             yy, xx = self.assembler.connections[i][:2]
             symbol = self.assembler.forms[form_number][i]
-            if symbol in '-': continue
+            if symbol in '.-': continue
 
             edge = self.pos(xx, yy, False)
             out = edge
@@ -1400,7 +1401,7 @@ class Interface(QtCore.QObject):
 
             if len(items)%2 != 0:
                 for i in range(len(form)):
-                    if form[i] not in '-' and \
+                    if form[i] not in '.-' and \
                        form.count(form[i]) == 1 and \
                        (Config.compatabilities[form[i]] == form[i] or \
                         form.count(Config.compatabilities[form[i]])%2 == 0):

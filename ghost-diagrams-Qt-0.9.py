@@ -742,10 +742,22 @@ def showException(f):
 
     return wrapper
 
+def eatException(f):
+    """Decorator to keep Python exceptions contained, to avoid crashing Qt."""
+
+    @functools.wraps(f)
+    def wrapper(self, *args, **kw):
+        try:
+            return f(self, *args, **kw)
+        except:
+            pass
+
+    return wrapper
+
 def make_spin(label, min_val, max_val, val, on_changed):
     """Create a spin-box UI to adjust numbers."""
     label = QtWidgets.QLabel(label)
-    label.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Minimum)
+    label.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Preferred)
     if type(min_val) == type(1):
         spin = QtWidgets.QSpinBox()
         spin.setSingleStep(1)
@@ -758,21 +770,23 @@ def make_spin(label, min_val, max_val, val, on_changed):
         spin.setValue(val)
     spin.setObjectName('spin')
     spin.setFrame(True)
+    spin.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Preferred)
     spin.setButtonSymbols(QtWidgets.QSpinBox.NoButtons)
     spin.valueChanged.connect(on_changed)
     spin_more = QtWidgets.QPushButton(' + ')
-    spin_more.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
+    spin_more.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Preferred)
     spin_more.clicked.connect(spin.stepUp)
     spin_more.setObjectName('more')
     spin_less = QtWidgets.QPushButton(' - ')
-    spin_less.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
+    spin_less.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Preferred)
     spin_less.clicked.connect(spin.stepDown)
     spin_less.setObjectName('less')
     frame = make_hbox(0, label, spin_more, spin, spin_less, spacing=0)
+    frame.setLineWidth(0)
     frame.setStyleSheet('''
-        #more { padding: 3px 4px; }
-        #less { padding: 3px 5px; }
-        #spin { width: 20px; }
+        #more { padding: 3px 4px 5px; }
+        #less { padding: 3px 5px 5px; }
+        #spin { width: 20px; margin: 1px; }
     ''')
     return spin, frame
 
@@ -783,7 +797,7 @@ def make_check(label, val, on_changed):
     check.stateChanged.connect(on_changed)
     return check
 
-def make_box(margins, horiz, *widgets, spacing=None):
+def make_box(margins, horiz, *widgets, spacing=None, border=None):
     """Create a container box for other UI elements."""
     if horiz:
         box = QtWidgets.QHBoxLayout()
@@ -839,14 +853,19 @@ class Canvas(QtWidgets.QFrame):
         QtWidgets.QFrame.__init__(self)
         self.setAttribute(QtCore.Qt.WA_NoSystemBackground)
         self.setAttribute(QtCore.Qt.WA_OpaquePaintEvent)
+        self.window = self
 
+    @eatException
     def paintEvent(self, event):
         painter = QtGui.QPainter()
         painter.begin(self)
-        painter.setRenderHint(QtGui.QPainter.Antialiasing)
+        painter.setRenderHints(QtGui.QPainter.Antialiasing
+                              |QtGui.QPainter.TextAntialiasing
+                              |QtGui.QPainter.SmoothPixmapTransform)
         self.painting.emit(painter)
         painter.end()
 
+    @eatException
     def resizeEvent(self, event):
         self.resizing.emit(event.size())
 
@@ -939,6 +958,7 @@ class Interface(QtCore.QObject):
         tilings_frame = make_hbox(0, tilings_label, self.tilings_combo, random_button)
 
         self.colors_combo = QtWidgets.QComboBox()
+        self.colors_combo.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Preferred)
         self.colors_combo.setMaxVisibleItems(40)
         for name in Interface.color_schemes:
             self.colors_combo.addItem(name)

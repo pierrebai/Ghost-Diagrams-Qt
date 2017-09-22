@@ -283,6 +283,10 @@ class Config:
     #  can be formed by a simple linear transformation)
 
     # [ (y, x, index of reverse connection) ]
+    connections_8 = [ (-1, 0, 4), (-1, 1, 5), (0, 1, 6), (1, 1, 7), (1, 0, 0), (1, -1, 1), (0, -1, 2), (-1, -1, 3) ]
+    x_mapper_8 = Point(0.5**0.5, 0.5**0.5)
+    y_mapper_8 = Point(-0.5**0.5, 0.5**0.5)
+
     connections_6 = [ (-1, 0, 3), (-1, 1, 4), (0, 1, 5), (1, 0, 0), (1, -1, 1), (0, -1, 2) ]
     x_mapper_6 = Point(1.0, 0.0)
     y_mapper_6 = Point(0.5, 0.75**0.5)
@@ -332,6 +336,11 @@ class Config:
             self.connections = Config.connections_6
             self.x_mapper = Config.x_mapper_6
             self.y_mapper = Config.y_mapper_6
+        elif count <= 8:
+            count = 8
+            self.connections = Config.connections_8
+            self.x_mapper = Config.x_mapper_8
+            self.y_mapper = Config.y_mapper_8
         else:
             raise Exception("Too many connections specified in some items (more than 6).")
 
@@ -746,6 +755,7 @@ def showException(f):
             return f(self, *args, **kw)
         except Exception as e:
             QtWidgets.QErrorMessage(self.window).showMessage(str(e))
+            raise
 
     return wrapper
 
@@ -1289,7 +1299,7 @@ class Interface(QtCore.QObject):
             if self.knot:
                 sides = 6
             else:
-                sides = random.choice([4,6])
+                sides = random.choice([4,6,8])
 
         while True:
             if self.knot:
@@ -1361,6 +1371,8 @@ class Interface(QtCore.QObject):
         result = [ ]
         connections = { }
 
+        octogonal = (len(self.assembler.connections) == 8)
+
         for i in range(len(self.assembler.connections)):
             yy, xx = self.assembler.connections[i][:2]
             symbol = self.assembler.forms[form_number][i]
@@ -1379,6 +1391,9 @@ class Interface(QtCore.QObject):
                 r = 0.225
             else:
                 r = 0.15
+
+            if octogonal:
+                r *= 0.7
 
             if symbol in 'ABCD':
                 poke = 0.3 #r
@@ -1571,8 +1586,13 @@ class Interface(QtCore.QObject):
 
                 painter.drawPolygon(*val2pt(poly))
 
+        # Note: we do the drawing in two passes to that octogonal tilings overlap more gracefully.
         for (y,x), form_number in self.assembler.tiles.items():
-            self.draw_poly(y,x,form_number,painter)
+            if y % 2 == x % 2:
+                self.draw_poly(y,x,form_number,painter)
+        for (y,x), form_number in self.assembler.tiles.items():
+            if y % 2 != x % 2:
+                self.draw_poly(y,x,form_number,painter)
 
         if self.error:
             self.setPaintColors(painter, QtGui.QColor(0,0,0), QtGui.QColor(255,240,240))

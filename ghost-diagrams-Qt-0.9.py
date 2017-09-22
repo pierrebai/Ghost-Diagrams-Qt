@@ -951,12 +951,12 @@ class Interface(QtCore.QObject):
         self.error = None
         self.corner = 0.5
         self.full_paint = True
-        self.ignore_from_ui = False
+        self.ignore_from_ui = False # Unfortunate hack to avoid feedback when setting UI.
 
         # UI
         self.canvas = Canvas()
         self.canvas.painting.connect(self.on_paint)
-        self.canvas.resizing.connect(self.on_size)
+        self.canvas.resizing.connect(self.on_resize)
         self.canvas.resize(self.width, self.height)
         self.canvas.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
         self.canvas.setLineWidth(1)
@@ -1043,7 +1043,7 @@ class Interface(QtCore.QObject):
     # Event handlers. UI -> Data.
 
     @showException
-    def on_size(self, sz):
+    def on_resize(self, sz):
         self.width = sz.width()
         self.height = sz.height()
         self.reset()
@@ -1073,47 +1073,35 @@ class Interface(QtCore.QObject):
         self.full_paint = True
         self.canvas.update()
 
-    @showException
-    def on_fill_changed(self, state):
+    def on_something_changed(self, destination, state):
         if self.ignore_from_ui:
-            return
-        self.fill.setFromUser(bool(state))
+            return False
+        destination.setFromUser(bool(state))
         self.full_paint = True
         self.canvas.update()
+        return True
+
+    @showException
+    def on_fill_changed(self, state):
+        self.on_something_changed(self.fill, state)
 
     @showException
     def on_border_changed(self, state):
-        if self.ignore_from_ui:
-            return
-        self.border.setFromUser(bool(state))
-        self.full_paint = True
-        self.canvas.update()
+        self.on_something_changed(self.border, state)
 
     @showException
     def on_knot_changed(self, state):
-        if self.ignore_from_ui:
-            return
-        self.knot.setFromUser(bool(state))
-        self.shapes = {}
-        self.polys = {}
-        self.full_paint = True
-        self.canvas.update()
+        if self.on_something_changed(self.knot, state):
+            self.shapes = {}
+            self.polys = {}
 
     @showException
     def on_labels_changed(self, state):
-        if self.ignore_from_ui:
-            return
-        self.labels.setFromUser(bool(state))
-        self.full_paint = True
-        self.canvas.update()
+        self.on_something_changed(self.labels, state)
 
     @showException
     def on_grid_changed(self, state):
-        if self.ignore_from_ui:
-            return
-        self.grid.setFromUser(bool(state))
-        self.full_paint = True
-        self.canvas.update()
+        self.on_something_changed(self.grid, state)
 
     @showException
     def on_reset(self, index = 0):
@@ -1219,6 +1207,31 @@ class Interface(QtCore.QObject):
     ###################################################################
     # Starting a new tiling.
 
+    def update_point_set(self, previous_point_set={}):
+        point_set = { }
+        yr = int( self.height/self.scale/4 )
+        xr = int( self.width/self.scale/4 )
+        bound = self.scale * 3
+        if self.labels:
+            minx = bound
+            maxx = self.width  - bound
+            miny = bound
+            maxy = self.height - bound - 40
+        else:
+            minx = -bound
+            maxx = self.width  + bound
+            miny = -bound
+            maxy = self.height + bound
+        for y in range(-yr,yr):
+            for x in range(-xr,xr):
+                point = self.pos(x*2, y*2)
+                if point.x > minx and point.x < maxx and point.y > miny and point.y < maxy:
+                    try:
+                        point_set[(y,x)] = previous_point_set[(y,x)]
+                    except:
+                        point_set[(y,x)] = True
+        return point_set
+
     def reset(self, index = 0):
         try:
             self.config = Config(self.tilings_combo.currentText())
@@ -1240,26 +1253,7 @@ class Interface(QtCore.QObject):
 
         self.apply_current_color_scheme()
 
-        point_set = { }
-        yr = int( self.height/self.scale/4 )
-        xr = int( self.width/self.scale/4 )
-        if self.labels:
-            bound = self.scale * 3
-            for y in range(-yr,yr):
-                for x in range(-xr,xr):
-                    point = self.pos(x*2,y*2)
-                    if point.x > bound and point.x < self.width-bound and \
-                       point.y > bound and point.y < self.height-bound-40:
-                        point_set[(y,x)] = True
-        else:
-            bound = self.scale * 3
-            for y in range(-yr,yr):
-                for x in range(-xr,xr):
-                    point = self.pos(x*2,y*2)
-                    if point.x > -bound and point.x < self.width+bound and \
-                       point.y > -bound and point.y < self.height+bound:
-                        point_set[(y,x)] = True
-
+        point_set = self.update_point_set()
 
         self.randomizing = False
         self.iteration = 0
@@ -1268,6 +1262,9 @@ class Interface(QtCore.QObject):
         self.full_paint = True
         self.assembler = Assembler(self.config.connections, Config.compatabilities,
                                    self.config.forms, self.config.probabilities, point_set)
+        self.start_idling()
+
+    def start_idling(self):
         if not self.timer:
             self.timer = QtCore.QTimer()
             self.timer.timeout.connect(self.on_idle)

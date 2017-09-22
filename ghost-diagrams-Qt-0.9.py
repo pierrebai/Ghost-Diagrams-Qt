@@ -27,16 +27,22 @@
 
   Tile set specification:
 
-     A tile set specification is a list of 6- or 4-character strings,
-     eg B-Aa-- b--Aa-
+     A tile set specification is a list of up to 6- or 4-character strings,
+     corrsponding to a hexagonal or square grid, respectively. For example,
+     B-Aa-- b--Aa- represent two hexagonal tiles.
 
      Each character represents a tile edge. Letters (abcd, ABCD)
      match with their opposite case. Numbers match with themselves.
+     Dashes represent no connection and dot match with anything.
 
-     A tile specifiction can be multiplied by a number to make it
-     that much likely to be selected.
+     Missing characters are assumed to be dashes; the longest tile in the set
+     decides if a square of hexagonal grid is used.
 
-     A number of extra paramters can also be supplied:
+     A tile specification can be multiplied by a number to make it
+     that much likely to be selected. Multiplication by a number between
+     zero and one decreases the likelyhood that the tile will be selected.
+
+     A number of extra parameters can also be supplied:
 
          border : True/False : draw tile borders or not
          fill : True/False : fill tile or not with colors
@@ -49,6 +55,7 @@
          grid : True/False : draw a grid or not
          labels : True/False : draw labels for each tile under diagram
          name : name of the tile set
+         knot : shot knots on the tiles
 
      eg B-Aa-- b--Aa- width=1000 height=1000 thickness=0.5 colors=[000,000,fff,f00]
 
@@ -292,6 +299,7 @@ class Config:
         self.foreground = '000'
         self.border = None
         self.fill = None
+        self.knot = None
         self.thickness = 1.0
         self.width = -1
         self.height = -1
@@ -426,6 +434,7 @@ def parse_colors_array(self, name, text):
 def parse_config(self, text):
     """Convert the given text into the known options and ssign them to self. Return the array of text not matching options."""
     parsers = {
+        'knot'          : parse_bool,
         'border'        : parse_bool,
         'fill'          : parse_bool,
         'thickness'     : parse_float,
@@ -1246,6 +1255,7 @@ class Interface(QtCore.QObject):
         self.set_border(self.config.border)
         self.set_labels(self.config.labels)
         self.set_grid(self.config.grid)
+        self.set_knot(self.config.knot)
 
         self.background = alloc_color(self.config.background)
         self.foreground = alloc_color(self.config.foreground)

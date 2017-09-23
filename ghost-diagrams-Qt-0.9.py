@@ -308,92 +308,91 @@ def alloc_color(text):
     else:
         return QtGui.QColor(128, 128, 128)
 
-def parse_common(name, text):
+def parse_common(name_and_synonyms, text):
     """Check if the given text contains an assignment to the given named option, return the value or None."""
     if '=' not in text:
         return None
-    if name not in text:
-        return None
-    arg, val = text.split('=')
-    if arg.lower() != name:
-        return None
-    return val
+    for name in name_and_synonyms:
+        arg, val = text.split('=')
+        if arg.lower() == name:
+            return val
+    return None
 
-def parse_bool(self, name, text):
+def parse_bool(self, name_and_synonyms, text):
     """Check if the given text contains a boolean assignment to the given named option, return True if successfully parsed."""
-    val = parse_common(name, text)
+    val = parse_common(name_and_synonyms, text)
     if not val:
         return False
-    setattr(self, name, bool(int(val)))
+    setattr(self, name_and_synonyms[0], bool(int(val)))
     return True
 
-def parse_float(self, name, text):
+def parse_float(self, name_and_synonyms, text):
     """Check if the given text contains a real number assignment to the given named option, return True if successfully parsed."""
-    val = parse_common(name, text)
+    val = parse_common(name_and_synonyms, text)
     if not val:
         return False
-    setattr(self, name, float(val))
+    setattr(self, name_and_synonyms[0], float(val))
     return True
 
-def parse_int(self, name, text):
+def parse_int(self, name_and_synonyms, text):
     """Check if the given text contains an integer number assignment to the given named option, return True if successfully parsed."""
-    val = parse_common(name, text)
+    val = parse_common(name_and_synonyms, text)
     if not val:
         return False
-    setattr(self, name, int(val))
+    setattr(self, name_and_synonyms[0], int(val))
     return True
 
-def parse_text(self, name, text):
+def parse_text(self, name_and_synonyms, text):
     """Check if the given text contains an assignment to the given named option, return True if successfully parsed."""
-    val = parse_common(name, text)
+    val = parse_common(name_and_synonyms, text)
     if not val:
         return False
-    setattr(self, name, val)
+    setattr(self, name_and_synonyms[0], val)
     return True
 
-def parse_color(self, name, text):
+def parse_color(self, name_and_synonyms, text):
     """Check if the given text contains a color assignment to the given named option, return True if successfully parsed."""
-    val = parse_common(name, text)
+    val = parse_common(name_and_synonyms, text)
     if not val:
         return False
     if not all([c in '0123456789abcdefABCDEF' for c in val]):
-        raise Exception('Color description "%s" for %s is not in hexadecimal.' %(val, name))
-    setattr(self, name, val)
+        raise Exception('Color description "%s" for %s is not in hexadecimal.' %(val, name_and_synonyms[0]))
+    setattr(self, name_and_synonyms[0], val)
     return True
 
-def parse_colors(name, text, sep=','):
+def parse_colors(name_and_synonyms, text, sep=','):
     """Convert the given text into separate color text."""
     new_colors = []
     for i, color in enumerate(text.split(sep)):
         if not all([c in '0123456789abcdefABCDEF' for c in color]):
-            raise Exception('Color description "%s" for %s is not in hexadecimal.' %(color, name))
+            raise Exception('Color description "%s" for %s is not in hexadecimal.' %(color, name_and_synonyms[0]))
         new_colors.append(color)
     return new_colors
 
-def parse_colors_array(self, name, text):
+def parse_colors_array(self, name_and_synonyms, text):
     """Check if the given text contains a multiple colors assignment to the given named option, return True if successfully parsed."""
-    val = parse_common(name, text)
+    val = parse_common(name_and_synonyms, text)
     if not val:
         return False
-    new_colors = parse_colors(name, val)
+    new_colors = parse_colors(name_and_synonyms, val)
     self.colors[0:len(new_colors)] = new_colors
     return True
 
 def parse_config(self, text):
     """Convert the given text into the known options and ssign them to self. Return the array of text not matching options."""
     parsers = {
-        'knot'          : parse_bool,
-        'border'        : parse_bool,
-        'fill'          : parse_bool,
-        'thickness'     : parse_float,
-        'width'         : parse_int,
-        'height'        : parse_int,
-        'background'    : parse_color,
-        'foreground'    : parse_color,
-        'colors'        : parse_colors_array,
-        'grid'          : parse_bool,
-        'labels'        : parse_bool,
-        'name'          : parse_text,
+        ('knot',)             : parse_bool,
+        ('border',)           : parse_bool,
+        ('fill',)             : parse_bool,
+        ('thickness',)        : parse_float,
+        ('width', 'w',)       : parse_int,
+        ('height', 'h',)      : parse_int,
+        ('background', 'bg',) : parse_color,
+        ('foreground', 'fg',) : parse_color,
+        ('colors',)           : parse_colors_array,
+        ('grid',)             : parse_bool,
+        ('labels',)           : parse_bool,
+        ('name',)             : parse_text,
     }
 
     for c in text.split():

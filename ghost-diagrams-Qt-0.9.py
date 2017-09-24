@@ -153,6 +153,7 @@ def normalize(form):
 # Some cool tile sets people have found
 
 catalogue = [
+    "1-1-11-- 1--1 1-1",
     "ddDD dDdD dD",
     "dDc3 c-3 3C 3",
     "dD4 4-4 4a4A aA a-A",
@@ -342,7 +343,7 @@ class Config:
             self.x_mapper = Config.x_mapper_8
             self.y_mapper = Config.y_mapper_8
         else:
-            raise Exception("Too many connections specified in some items (more than 6).")
+            raise Exception("Too many connections specified in some items (more than 8).")
 
         for i, item in enumerate(self.forms):
             missings = count - len(item)

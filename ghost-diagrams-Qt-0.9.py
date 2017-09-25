@@ -96,14 +96,6 @@
   TODO: (blue sky) 3D, third dimension == time
 """
 
-try:
-    import psyco
-    psyco.profile()
-except:
-    pass
-
-__version__ = '0.9'
-
 import sys, os, random, math, functools
 import PyQt5.QtCore as QtCore
 import PyQt5.QtGui as QtGui
@@ -263,10 +255,10 @@ catalogue = [
 # =========================================================================
 
 class Config:
-    """Describe a tiling adn its connections, colors, options."""
+    """Describe a tiling and its connections, colors, options."""
 
     # What edge type connects with what?
-    # (a tile is represented as a string of 6 characters representing the 6 edges)
+    # (a tile is represented as a string of up to 8 characters representing the edges)
     compatabilities = {
         '-':'-',
         'A':'a', 'a':'A', 'B':'b', 'b':'B', 'c':'C', 'C':'c', 'd':'D', 'D':'d',
@@ -485,8 +477,6 @@ class Assembler:
         self.options_cache = { }   # pattern -> [form_ids]
         self.dead_loci = set([ ]) # [ {(y,x)->form number} ]
         self.history = [ ]
-        self.total_y = 0
-        self.total_x = 0
         self.changes = { }
 
         for id, form in enumerate(forms):
@@ -506,19 +496,12 @@ class Assembler:
         else:
             self.changes[(y,x)] = self.tiles.get((y,x),None)
 
-
-        if (y,x) in self.tiles:
-            self.total_y -= y
-            self.total_x -= x
-
         if value == None:
             if (y,x) not in self.tiles: return
             del self.tiles[(y,x)]
             self.dirty[(y,x)] = True
         else:
             self.tiles[(y,x)] = value
-            self.total_y += y
-            self.total_x += x
 
         for oy, ox, opposite in self.connections:
             y1 = y + oy

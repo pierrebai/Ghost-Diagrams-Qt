@@ -59,8 +59,6 @@
 
      eg B-Aa-- b--Aa- width=1000 height=1000 thickness=0.5 colors=[000,000,fff,f00]
 
-  TODO: save/export
-
   TODO: don't backtrack areas outside current locus
         (difficulty: accidentally creating disconnected islands)
 
@@ -974,6 +972,10 @@ class Interface(QtCore.QObject):
 
         tilings_frame = make_hbox(0, tilings_label, self.tilings_combo, random_button)
 
+        save_canvas_button = QtWidgets.QPushButton('Save Canvas')
+        save_canvas_button.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Minimum)
+        save_canvas_button.clicked.connect(self.on_save_canvas)
+
         self.colors_combo = QtWidgets.QComboBox()
         self.colors_combo.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Preferred)
         self.colors_combo.setMaxVisibleItems(40)
@@ -997,7 +999,7 @@ class Interface(QtCore.QObject):
         reset_button.clicked.connect(self.on_reset)
 
         hframe = make_hbox(2,
-            3, self.colors_combo, self.fill_box, self.border_box, self.knot_box, self.grid_box, self.labels_box,
+            3, save_canvas_button, 1, self.colors_combo, self.fill_box, self.border_box, self.knot_box, self.grid_box, self.labels_box,
             1, reset_button,
             1, scale_frame, thickness_frame, corner_frame, 3)
 
@@ -1111,6 +1113,11 @@ class Interface(QtCore.QObject):
     @showException
     def on_random(self, value):
         self.random()
+
+
+    @showException
+    def on_save_canvas(self, value):
+        self.save_canvas()
 
     @showException
     def on_idle(self):
@@ -1530,6 +1537,19 @@ class Interface(QtCore.QObject):
         alignment = QtCore.Qt.AlignCenter | QtCore.Qt.TextWordWrap
         painter.drawText(r, alignment, text)
         return r.right() + padding * 2
+
+    def save_canvas(self):
+        fn, image_format = QtWidgets.QFileDialog.getSaveFileName(self.window, "Select Destination Image", "", "Images (*.png, *.jpg)")
+        if not fn:
+            return
+        image = QtGui.QImage(self.width, self.height, QtGui.QImage.Format_RGB32)
+        painter = QtGui.QPainter(image)
+        painter.setRenderHints(QtGui.QPainter.Antialiasing
+                              |QtGui.QPainter.TextAntialiasing
+                              |QtGui.QPainter.SmoothPixmapTransform)
+        self.repaint_all(painter)
+        painter.end()
+        image.save(fn)
 
     def repaint_all(self, painter):
         self.full_paint = False

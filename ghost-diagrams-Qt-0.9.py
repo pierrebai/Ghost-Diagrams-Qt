@@ -59,36 +59,7 @@
 
      eg B-Aa-- b--Aa- width=1000 height=1000 thickness=0.5 colors=[000,000,fff,f00]
 
-  Change log:
-
-     0.1 -- initial release
-     0.2 -- don't segfault on empty tiles
-     0.3 -- random keeps trying till it finds something that will grow
-            optimization (options_cache)
-     0.4 -- assembly algorithm tweaks
-            random tile set tweaks
-     0.5 -- Patch by Jeff Epler
-             - allow window resizing
-             - new connection types (33,44,cC,dD)
-             - DNA tile set
-            widget to set size of tiles
-            no repeated tiles in random
-            improvements to assembler
-     0.6 -- Use Bezier curves
-            Parameters to set width, height, thickness, color
-            Save images
-     0.7 -- Allow square tiles
-            Smarter assembler
-            Animate assembly
-     0.8 -- Knotwork
-            Don't fill all of memory
-            Use psyco if available
-     0.9 -- Better parsing, simplified fornat, better error report,
-            support labels, use Qt instead of gtk,
-            support variable probabilities, ...
-
   TODO: save/export
-        don't reset on resize (add/remove space where needed.)
 
   TODO: don't backtrack areas outside current locus
         (difficulty: accidentally creating disconnected islands)
@@ -103,49 +74,9 @@ import PyQt5.QtWidgets as QtWidgets
 
 
 # ========================================================================
-# Some maths helpers.
-
-class Point:
-    def __init__(self, x,y):
-        self.x = x
-        self.y = y
-
-    def __add__(self, other): return Point(self.x+other.x,self.y+other.y)
-    def __sub__(self, other): return Point(self.x-other.x,self.y-other.y)
-    def __mul__(self, factor): return Point(self.x*factor, self.y*factor)
-    def length(self): return (self.y*self.y + self.x*self.x) ** 0.5
-    def int_xy(self): return int(self.x+0.5), int(self.y+0.5)
-    def left90(self): return Point(-self.y, self.x)
-
-def val2pt(vals):
-    return [QtCore.QPoint(int(p[0]),int(p[1])) for p in vals]
-
-def bezier(a,b,c,d):
-    result = [ ]
-    n = 12
-    for i in range(1,n):
-        u = float(i) / n
-        result.append(
-            a * ((1-u)*(1-u)*(1-u)) +
-            b * (3*u*(1-u)*(1-u)) +
-            c * (3*u*u*(1-u)) +
-            d * (u*u*u)
-        )
-    return result
-
-def normalize(form):
-    best = form
-    for i in range(len(form)-1):
-        form = form[1:] + form[0]
-        if form > best: best = form
-    return best
-
-
-# ========================================================================
 # Some cool tile sets people have found
 
 catalogue = [
-    "1-1-11-- 1--1 1-1",
     "ddDD dDdD dD",
     "dDc3 c-3 3C 3",
     "dD4 4-4 4a4A aA a-A",
@@ -249,7 +180,23 @@ catalogue = [
     "1111 1",
     "111",
     "1-1-1 2--12",
+    "1-1-11-- 1--1 1-1",
 ]
+
+
+# =========================================================================
+
+class Point:
+    def __init__(self, x,y):
+        self.x = x
+        self.y = y
+
+    def __add__(self, other): return Point(self.x+other.x,self.y+other.y)
+    def __sub__(self, other): return Point(self.x-other.x,self.y-other.y)
+    def __mul__(self, factor): return Point(self.x*factor, self.y*factor)
+    def length(self): return (self.y*self.y + self.x*self.x) ** 0.5
+    def int_xy(self): return int(self.x+0.5), int(self.y+0.5)
+    def left90(self): return Point(-self.y, self.x)
 
 
 # =========================================================================
@@ -741,6 +688,33 @@ class Assembler:
             return False
 
         return True
+
+
+# ========================================================================
+# Some maths helpers.
+
+def val2pt(vals):
+    return [QtCore.QPoint(int(p[0]),int(p[1])) for p in vals]
+
+def bezier(a,b,c,d):
+    result = [ ]
+    n = 12
+    for i in range(1,n):
+        u = float(i) / n
+        result.append(
+            a * ((1-u)*(1-u)*(1-u)) +
+            b * (3*u*(1-u)*(1-u)) +
+            c * (3*u*u*(1-u)) +
+            d * (u*u*u)
+        )
+    return result
+
+def normalize(form):
+    best = form
+    for i in range(len(form)-1):
+        form = form[1:] + form[0]
+        if form > best: best = form
+    return best
 
 
 # ========================================================================

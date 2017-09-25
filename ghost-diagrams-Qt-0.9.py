@@ -298,8 +298,8 @@ class Config:
         self.fill = None
         self.knot = None
         self.thickness = 1.0
-        self.width = -1
-        self.height = -1
+        self.width = 0
+        self.height = 0
         self.grid = None
         self.labels = None
         self.forms = []
@@ -465,7 +465,7 @@ class Assembler:
     def __init__(self, connections, compatabilities, forms, probabilities, point_set):
         self.connections = connections    # [(y,x,index of reverse connection)]
         self.compatabilities = compatabilities    # { edge-char -> edge-char }
-        self.point_set = point_set   # (y,x) -> True
+        self.point_set = point_set   # set of (y,x)
 
         self.basic_forms = forms   # ['edge types']
         self.forms = [ ]   # ['edge types']
@@ -473,7 +473,7 @@ class Assembler:
         self.rotation = [ ]  # [rotation from original]
         self.probabilities = [ ]
         self.tiles = { }   # (y,x) -> form number
-        self.dirty = { }   # (y,x) -> True   -- Possible sites for adding tiles
+        self.dirty = set()   # set of (y,x) -- Possible sites for adding tiles
         self.options_cache = { }   # pattern -> [form_ids]
         self.dead_loci = set([ ]) # [ {(y,x)->form number} ]
         self.history = [ ]
@@ -489,6 +489,20 @@ class Assembler:
                     self.probabilities.append(probabilities[id])
                 current = current[1:] + current[0]
 
+    def update_point_set(self, point_set):
+        for pt in point_set:
+            if pt not in self.point_set:
+                for oy, ox, opposite in self.connections:
+                    neighbor = (pt[0] + oy, pt[1] + ox)
+                    if neighbor not in point_set:
+                        continue
+                    if neighbor in self.dirty:
+                        continue
+                    if neighbor in self.tiles:
+                        del self.tiles[neighbor]
+                        self.dirty.add(neighbor)
+        self.point_set = point_set
+
     def put(self, y,x, value):
         if (y,x) in self.changes:
             if value == self.changes[(y,x)]:
@@ -499,7 +513,7 @@ class Assembler:
         if value == None:
             if (y,x) not in self.tiles: return
             del self.tiles[(y,x)]
-            self.dirty[(y,x)] = True
+            self.dirty.add((y,x))
         else:
             self.tiles[(y,x)] = value
 
@@ -507,7 +521,7 @@ class Assembler:
             y1 = y + oy
             x1 = x + ox
             if (y1,x1) not in self.tiles and (y1, x1) in self.point_set:
-                self.dirty[(y1,x1)] = True
+                self.dirty.add((y1,x1))
 
     def get_pattern(self, y,x):
         result = ''
@@ -642,9 +656,9 @@ class Assembler:
 
         mid_y = 0.0
         mid_x = 0.0
-        for y, x in list(self.dirty.keys()):
+        for y, x in list(self.dirty): # Note: need to convert to list because we modify the set in the loop.
             if (y,x) in self.tiles or not self.any_links_to(y,x):
-                del self.dirty[(y,x)]
+                self.dirty.remove((y,x))
                 continue
             mid_y += y
             mid_x += x
@@ -656,7 +670,7 @@ class Assembler:
         mid_x /= len(self.dirty)
 
         point_list = [ ]
-        for y, x in self.dirty.keys():
+        for y, x in self.dirty:
             yy = y - mid_y
             xx = x - mid_x
             sorter = ((yy*2)**2+(xx*2+yy)**2)
@@ -936,8 +950,8 @@ class Interface(QtCore.QObject):
 
         # Data
         self.iteration = 0
-        self.width = 1000
-        self.height = 800
+        self.width = -1
+        self.height = -1
         self.scale = 8
         self.thickness = 1
         self.knot = ConfigOverrideVal(False)
@@ -1047,9 +1061,16 @@ class Interface(QtCore.QObject):
 
     @showException
     def on_resize(self, sz):
-        self.width = sz.width()
-        self.height = sz.height()
-        self.reset()
+        nw, nh = sz.width(), sz.height()
+        if nw == self.width and nh == self.height:
+            return
+        self.width = nw
+        self.height = nh
+        self.shapes = { }
+        self.polys = { }
+        self.assembler.update_point_set(self.create_point_set())
+        self.start_idling()
+        self.update_full_canvas()
 
     @showException
     def on_set_scale(self, value):
@@ -1061,27 +1082,23 @@ class Interface(QtCore.QObject):
         self.corner = value
         self.shapes = {}
         self.polys = {}
-        self.full_paint = True
-        self.canvas.update()
+        self.update_full_canvas()
 
     @showException
     def on_set_thickness(self, value):
         self.thickness = value
-        self.full_paint = True
-        self.canvas.update()
+        self.update_full_canvas()
 
     @showException
     def on_color_scheme_changed(self, index):
         self.apply_current_color_scheme()
-        self.full_paint = True
-        self.canvas.update()
+        self.update_full_canvas()
 
     def on_something_changed(self, destination, state):
         if self.ignore_from_ui:
             return False
         destination.setFromUser(bool(state))
-        self.full_paint = True
-        self.canvas.update()
+        self.update_full_canvas()
         return True
 
     @showException
@@ -1124,8 +1141,7 @@ class Interface(QtCore.QObject):
         if not self.assembler.iterate():
             self.timer.stop()
             self.timer = None
-            self.full_paint = True
-            self.canvas.update()
+            self.update_full_canvas()
 
         self.iteration += 1
 
@@ -1157,8 +1173,7 @@ class Interface(QtCore.QObject):
         self.ignore_from_ui = True
         ui.setChecked(bool(val))
         self.ignore_from_ui = False
-        self.full_paint = True
-        self.canvas.update()
+        self.update_full_canvas()
 
     def set_grid(self, value):
         self.set_config_val(self.grid, self.grid_box, value)
@@ -1187,31 +1202,28 @@ class Interface(QtCore.QObject):
             return
         self.corner = value
         self.corner_spin.setValue(self.corner)
-        self.full_paint = True
-        self.canvas.update()
+        self.update_full_canvas()
 
     def set_thickness(self, value):
         if value is None:
             return
         self.thickness = value
         self.thickness_spin.setValue(self.thickness)
-        self.full_paint = True
-        self.canvas.update()
+        self.update_full_canvas()
 
     def set_size(self, sz):
         if sz is None:
             return
         self.width = sz.width()
         self.height = sz.height()
-        self.full_paint = True
-        self.canvas.update()
+        self.update_full_canvas()
 
 
     ###################################################################
     # Starting a new tiling.
 
-    def update_point_set(self, previous_point_set={}):
-        point_set = { }
+    def create_point_set(self):
+        point_set = set()
         yr = int( self.height/self.scale/4 )
         xr = int( self.width/self.scale/4 )
         bound = self.scale * 3
@@ -1229,10 +1241,7 @@ class Interface(QtCore.QObject):
             for x in range(-xr,xr):
                 point = self.pos(x*2, y*2)
                 if point.x > minx and point.x < maxx and point.y > miny and point.y < maxy:
-                    try:
-                        point_set[(y,x)] = previous_point_set[(y,x)]
-                    except:
-                        point_set[(y,x)] = True
+                    point_set.add((y,x))
         return point_set
 
     def reset(self, index = 0):
@@ -1242,8 +1251,7 @@ class Interface(QtCore.QObject):
         except Exception as e:
             self.config = Config("---- grid=0 background=fff foreground=f66")
             self.error = str(e)
-            self.full_paint = True
-            self.canvas.update()
+            self.update_full_canvas()
 
         self.set_fill(self.config.fill)
         self.set_border(self.config.border)
@@ -1257,7 +1265,7 @@ class Interface(QtCore.QObject):
 
         self.apply_current_color_scheme()
 
-        point_set = self.update_point_set()
+        point_set = self.create_point_set()
 
         self.randomizing = False
         self.iteration = 0
@@ -1327,6 +1335,11 @@ class Interface(QtCore.QObject):
 
     ###################################################################
     # Painting and rendering.
+
+    def update_full_canvas(self):
+        """Force a full repaint of the canvas."""
+        self.full_paint = True
+        self.canvas.update()
 
     def apply_current_color_scheme(self):
         self.set_color_scheme(self.colors_combo.currentText())
@@ -1542,6 +1555,7 @@ class Interface(QtCore.QObject):
         return r.right() + padding * 2
 
     def repaint_all(self, painter):
+        self.full_paint = False
         self.setPaintColors(painter, self.foreground, self.background)
         painter.drawRect(0, 0, self.width, self.height)
 
@@ -1561,7 +1575,7 @@ class Interface(QtCore.QObject):
         if self.grid:
             self.setPaintColors(painter, alloc_color("eee"), None)
             f = 4.0 / len(self.config.connections)
-            for (y,x) in self.assembler.point_set.keys():
+            for (y,x) in self.assembler.point_set:
                 poly = [ ]
                 for i in range(len(self.config.connections)):
                     a = self.config.connections[i-1]
@@ -1586,7 +1600,6 @@ class Interface(QtCore.QObject):
 
     def paint_changes(self, painter):
         if self.full_paint:
-            self.full_paint = False
             self.repaint_all(painter)
 
         changes = self.assembler.changes

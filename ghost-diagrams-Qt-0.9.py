@@ -501,6 +501,9 @@ class Assembler:
                     if neighbor in self.tiles:
                         del self.tiles[neighbor]
                         self.dirty.add(neighbor)
+        for pt in list(self.tiles):
+            if pt not in point_set:
+                del self.tiles[pt]
         self.point_set = point_set
 
     def put(self, y,x, value):
@@ -1653,3 +1656,4 @@ if __name__ == '__main__':
             continue
 
         interface.scaled_pixbuf.save("/tmp/T" + result.replace(" ","-") + ".png", "png")
+

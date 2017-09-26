@@ -774,8 +774,8 @@ def make_spin(label, min_val, max_val, val, on_changed):
     frame = make_hbox(0, label, spin_more, spin, spin_less, spacing=0)
     frame.setLineWidth(0)
     frame.setStyleSheet('''
-        #more { padding: 3px 4px 5px; }
-        #less { padding: 3px 5px 5px; }
+        #more { width: 12px; padding: 3px 4px 5px; }
+        #less { width: 12px; padding: 3px 5px 5px; }
         #spin { width: 20px; margin: 1px; }
     ''')
     return spin, frame
@@ -998,10 +998,10 @@ class Interface(QtCore.QObject):
         reset_button.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Minimum)
         reset_button.clicked.connect(self.on_reset)
 
-        hframe = make_hbox(2,
-            3, save_canvas_button, 1, self.colors_combo, self.fill_box, self.border_box, self.knot_box, self.grid_box, self.labels_box,
+        hframe = make_hbox(0,
+            3, self.colors_combo, 1, self.fill_box, self.border_box, self.knot_box, self.grid_box, self.labels_box,
             1, reset_button,
-            1, scale_frame, thickness_frame, corner_frame, 3)
+            1, scale_frame, thickness_frame, corner_frame, 3, save_canvas_button)
 
         vframe = make_vbox(4, tilings_frame, hframe, self.canvas)
 
@@ -1017,6 +1017,7 @@ class Interface(QtCore.QObject):
         self.window.setStyleSheet('''
             QLabel#tilings_label { font: 18px; }
             QComboBox#tilings_combo { font: 18px; }
+            QPushButton { width: 80px; }
             ''')
 
         # Shortcuts

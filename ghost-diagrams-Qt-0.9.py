@@ -951,8 +951,9 @@ class Interface(QtCore.QObject):
         self.canvas.resizing.connect(self.on_resize)
         self.canvas.resize(self.width, self.height)
         self.canvas.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
-        self.canvas.setLineWidth(1)
-        self.canvas.setFrameStyle(Canvas.Box)
+        canvas_frame = make_hbox(0, self.canvas)
+        canvas_frame.setLineWidth(1)
+        canvas_frame.setFrameStyle(Canvas.Box)
 
         tilings_label = QtWidgets.QLabel('Tilings:')
         tilings_label.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Minimum)
@@ -1003,7 +1004,7 @@ class Interface(QtCore.QObject):
             1, reset_button,
             1, scale_frame, thickness_frame, corner_frame, 3, save_canvas_button)
 
-        vframe = make_vbox(4, tilings_frame, hframe, self.canvas)
+        vframe = make_vbox(4, tilings_frame, hframe, canvas_frame)
 
         self.window = QtWidgets.QWidget()
         grid = QtWidgets.QGridLayout()
@@ -1028,7 +1029,8 @@ class Interface(QtCore.QObject):
         add_click_shortcut('Ctrl+L', self.labels_box)
         add_click_shortcut('Ctrl+ ', reset_button)
         add_click_shortcut('Ctrl+R', random_button)
-        add_focus_shortcut('Ctrl+S', self.scale_spin)
+        add_click_shortcut('Ctrl+S', save_canvas_button)
+        add_focus_shortcut('Ctrl+N', self.scale_spin)
         add_focus_shortcut('Ctrl+H', self.thickness_spin)
         add_focus_shortcut('Ctrl+O', self.corner_spin)
         add_focus_shortcut('Ctrl+T', self.tilings_combo)
@@ -1597,7 +1599,7 @@ class Interface(QtCore.QObject):
 
     def repaint_all(self, painter):
         self.full_paint = False
-        self.setPaintColors(painter, self.foreground, self.background)
+        self.setPaintColors(painter, None, self.background)
         painter.drawRect(0, 0, self.width, self.height)
 
         if self.labels:

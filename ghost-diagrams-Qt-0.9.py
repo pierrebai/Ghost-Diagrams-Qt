@@ -1556,36 +1556,32 @@ class Interface(QtCore.QObject):
         painter.end()
         image.save(fn)
 
-    def repaint_all(self, painter):
-        self.full_paint = False
-        self.setPaintColors(painter, self.foreground, self.background)
-        painter.drawRect(0, 0, self.width, self.height)
+    def paint_labels(self, painter):
+        fontSize = 16
+        padding = 6
+        self.setPaintFont(painter, fontSize)
+        x = padding * 2
+        y = self.height - fontSize - padding * 4
+        if self.config.name:
+            self.setPaintColors(painter, self.foreground, self.background)
+            x = self.draw_text(painter, x, y, padding, False, self.config.name)
+        for i, form in enumerate(self.assembler.basic_forms):
+            self.setPaintColors(painter, self.foreground, self.colors[i])
+            x = self.draw_text(painter, x, y, padding, True, form)
 
-        if self.labels:
-            fontSize = 16
-            padding = 6
-            self.setPaintFont(painter, fontSize)
-            x = padding * 2
-            y = self.height - fontSize - padding * 4
-            if self.config.name:
-                self.setPaintColors(painter, self.foreground, self.background)
-                x = self.draw_text(painter, x, y, padding, False, self.config.name)
-            for i, form in enumerate(self.assembler.basic_forms):
-                self.setPaintColors(painter, self.foreground, self.colors[i])
-                x = self.draw_text(painter, x, y, padding, True, form)
+    def paint_grid(self, painter):
+        self.setPaintColors(painter, alloc_color("eee"), None)
+        f = 4.0 / len(self.config.connections)
+        for (y,x) in self.assembler.point_set:
+            poly = [ ]
+            for i in range(len(self.config.connections)):
+                a = self.config.connections[i-1]
+                b = self.config.connections[i]
+                poly.append((self.pos(x*2+(a[0]+b[0])*f,y*2+(a[1]+b[1])*f)).int_xy())
 
-        if self.grid:
-            self.setPaintColors(painter, alloc_color("eee"), None)
-            f = 4.0 / len(self.config.connections)
-            for (y,x) in self.assembler.point_set:
-                poly = [ ]
-                for i in range(len(self.config.connections)):
-                    a = self.config.connections[i-1]
-                    b = self.config.connections[i]
-                    poly.append((self.pos(x*2+(a[0]+b[0])*f,y*2+(a[1]+b[1])*f)).int_xy())
+            painter.drawPolygon(*val2pt(poly))
 
-                painter.drawPolygon(*val2pt(poly))
-
+    def paint_tiles(self, painter):
         # Note: we do the drawing in two passes to that octogonal tilings overlap more gracefully.
         for (y,x), form_number in self.assembler.tiles.items():
             if y % 2 == x % 2:
@@ -1594,11 +1590,26 @@ class Interface(QtCore.QObject):
             if y % 2 != x % 2:
                 self.draw_poly(y,x,form_number,painter)
 
-        if self.error:
-            self.setPaintColors(painter, QtGui.QColor(0,0,0), QtGui.QColor(255,240,240))
-            self.setPaintFont(painter, 24)
-            painter.drawText(0, 0, self.width, self.height, QtCore.Qt.AlignCenter | QtCore.Qt.TextWordWrap, self.error)
+    def paint_error(self, painter):
+        self.setPaintColors(painter, QtGui.QColor(0,0,0), QtGui.QColor(255,240,240))
+        self.setPaintFont(painter, 24)
+        painter.drawText(0, 0, self.width, self.height, QtCore.Qt.AlignCenter | QtCore.Qt.TextWordWrap, self.error)
 
+    def repaint_all(self, painter):
+        self.full_paint = False
+        self.setPaintColors(painter, self.foreground, self.background)
+        painter.drawRect(0, 0, self.width, self.height)
+
+        if self.labels:
+            self.paint_labels(painter)
+
+        if self.grid:
+            self.paint_grid(painter)
+
+        self.paint_tiles(painter)
+
+        if self.error:
+            self.paint_error(painter)
 
     def paint_changes(self, painter):
         if self.full_paint:

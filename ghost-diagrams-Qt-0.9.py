@@ -1045,11 +1045,7 @@ class Interface(QtCore.QObject):
             return
         self.width = nw
         self.height = nh
-        self.shapes = { }
-        self.polys = { }
-        self.assembler.update_point_set(self.create_point_set())
-        self.start_idling()
-        self.update_full_canvas()
+        self.update_assembler()
 
     @showException
     def on_set_scale(self, value):
@@ -1096,7 +1092,8 @@ class Interface(QtCore.QObject):
 
     @showException
     def on_labels_changed(self, state):
-        self.on_something_changed(self.labels, state)
+        if self.on_something_changed(self.labels, state):
+            self.update_assembler()
 
     @showException
     def on_grid_changed(self, state):
@@ -1205,6 +1202,13 @@ class Interface(QtCore.QObject):
 
     ###################################################################
     # Starting a new tiling.
+
+    def update_assembler(self):
+        self.shapes = { }
+        self.polys = { }
+        self.assembler.update_point_set(self.create_point_set())
+        self.start_idling()
+        self.update_full_canvas()
 
     def create_point_set(self):
         point_set = set()

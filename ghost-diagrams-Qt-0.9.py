@@ -1516,19 +1516,15 @@ class Interface(QtCore.QObject):
                 painter.drawPolygon(*val2pt(poly))
 
             if self.knot:
-                self.setPaintColors(painter, color, None)
                 for link, line1, line2 in links:
                     if not erase:
                         self.setPaintColors(painter, None, self.foreground)
                     painter.drawPolygon(*val2pt(link))
                     if not erase:
-                        self.setPaintColors(painter, None, color)
-                    self.setPaintColors(painter, color, None)
+                        self.setPaintColors(painter, color, None)
                     #painter.drawPolygon(*val2pt(link))
-                    painter.drawLines(*val2pt(line1))
-                    painter.drawLines(*val2pt(line2))
-                    #painter.drawLine(*val2pt(connections[i][-1]+connections[j][0]))
-                    #painter.drawLine(*val2pt(connections[j][-1]+connections[i][0]))
+                    painter.drawPolyline(*val2pt(line1))
+                    painter.drawPolyline(*val2pt(line2))
 
             if self.border:
                 if not erase:

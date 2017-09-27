@@ -1546,7 +1546,7 @@ class Interface(QtCore.QObject):
         return r.right() + padding * 2
 
     def save_canvas(self):
-        fn, image_format = QtWidgets.QFileDialog.getSaveFileName(self.window, "Select Destination Image", "", "Images (*.png, *.jpg)")
+        fn, image_format = QtWidgets.QFileDialog.getSaveFileName(self.window, "Select Destination Image", "", "Images (*.png *.jpg)")
         if not fn:
             return
         image = QtGui.QImage(self.width, self.height, QtGui.QImage.Format_RGB32)

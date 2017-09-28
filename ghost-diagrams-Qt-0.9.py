@@ -1521,7 +1521,10 @@ class Interface(QtCore.QObject):
                         self.setPaintColors(painter, None, self.foreground)
                     painter.drawPolygon(*val2pt(link))
                     if not erase:
-                        self.setPaintColors(painter, color, None)
+                        if self.fill:
+                            self.setPaintColors(painter, color, None)
+                        else:
+                            self.setPaintColors(painter, self.background, None)
                     #painter.drawPolygon(*val2pt(link))
                     painter.drawPolyline(*val2pt(line1))
                     painter.drawPolyline(*val2pt(line2))

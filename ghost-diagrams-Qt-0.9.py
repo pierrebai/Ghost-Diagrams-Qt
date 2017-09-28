@@ -75,6 +75,7 @@ import PyQt5.QtWidgets as QtWidgets
 # Some cool tile sets people have found
 
 catalogue = [
+    "dD--4- 4--4 4a-A-4 aA a--A",
     "ddDD dDdD dD",
     "dDc3 c-3 3C 3",
     "dD4 4-4 4a4A aA a-A",

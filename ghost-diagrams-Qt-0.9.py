@@ -295,19 +295,6 @@ class Config:
 # ========================================================================
 # Config parser. Convert the text description into a Config.
 
-def alloc_color(text):
-    """Convert a text description of a color in hexadecimal into a QColor."""
-    comp = []
-    steps = max(1,len(text)//3)
-    for i in range(0,len(text),steps):
-        comp.append(int(255 * int(text[i:i+steps], 16) / 16**steps))
-    if len(comp) == 1:
-        return QtGui.QColor(comp[0], comp[0], comp[0])
-    elif len(comp) == 3:
-        return QtGui.QColor(comp[0], comp[1], comp[2])
-    else:
-        return QtGui.QColor(128, 128, 128)
-
 def parse_common(name_and_synonyms, text):
     """Check if the given text contains an assignment to the given named option, return the value or None."""
     if '=' not in text:
@@ -744,6 +731,27 @@ def eatException(f):
 
     return wrapper
 
+def alloc_color(text):
+    """Convert a text description of a color in hexadecimal into a QColor."""
+    comp = []
+    steps = max(1,len(text)//3)
+    for i in range(0,len(text),steps):
+        comp.append(int(255 * int(text[i:i+steps], 16) / 16**steps))
+    if len(comp) == 1:
+        return QtGui.QColor(comp[0], comp[0], comp[0])
+    elif len(comp) == 3:
+        return QtGui.QColor(comp[0], comp[1], comp[2])
+    else:
+        return QtGui.QColor(128, 128, 128)
+
+def tweak_color_value(color):
+    hue, sat, value, alpha = color.getHsvF()
+    if value < 0.5:
+        value += 0.05
+    else:
+        value -= 0.05
+    return QtGui.QColor.fromHsvF(hue, sat, value, alpha)
+
 def make_spin(label, min_val, max_val, val, on_changed):
     """Create a spin-box UI to adjust numbers."""
     label = QtWidgets.QLabel(label)
@@ -1030,11 +1038,11 @@ class Interface(QtCore.QObject):
         add_click_shortcut('Ctrl+ ', reset_button)
         add_click_shortcut('Ctrl+R', random_button)
         add_click_shortcut('Ctrl+S', save_canvas_button)
-        add_focus_shortcut('Ctrl+N', self.scale_spin)
+        add_focus_shortcut('Ctrl+Z', self.scale_spin)
         add_focus_shortcut('Ctrl+H', self.thickness_spin)
         add_focus_shortcut('Ctrl+O', self.corner_spin)
         add_focus_shortcut('Ctrl+T', self.tilings_combo)
-        add_quit_shortcut('Ctrl+Q', self.window)
+        add_quit_shortcut ('Ctrl+Q', self.window)
 
         self.reset()
 
@@ -1571,7 +1579,7 @@ class Interface(QtCore.QObject):
             x = self.draw_text(painter, x, y, padding, True, form)
 
     def paint_grid(self, painter):
-        self.setPaintColors(painter, alloc_color("eee"), None)
+        self.setPaintColors(painter, tweak_color_value(self.background), None)
         f = 4.0 / len(self.config.connections)
         for (y,x) in self.assembler.point_set:
             poly = [ ]
@@ -1592,7 +1600,8 @@ class Interface(QtCore.QObject):
                 self.draw_poly(y,x,form_number,painter)
 
     def paint_error(self, painter):
-        self.setPaintColors(painter, QtGui.QColor(0,0,0), QtGui.QColor(255,240,240))
+        self.setPaintColors(painter, QtGui.QColor(0,0,0), QtGui.QColor(240,200,200))
+        painter.drawRect(0, 0, self.width, self.height)
         self.setPaintFont(painter, 24)
         painter.drawText(0, 0, self.width, self.height, QtCore.Qt.AlignCenter | QtCore.Qt.TextWordWrap, self.error)
 

@@ -924,12 +924,12 @@ class Interface(QtCore.QObject):
         'Teals'             : '98e2c6 51a3a3 b3c3c3 71bbb1 23b5d3',
         'Blues'             : 'b3cbd7 8c9fa7 395161 35a8df b2d8f0',
         'Beach Towel'       : 'e67b03 c7d300 428bca b09e99 eec9c1',
-        'Sunrise'           : 'ef798a f7a9a8 ffd289 facc6b ffd131',
-        'Sky and Sun'       : '007bb6 04b6f0 ffbc42 d81159 af2d66',
+        'Sunrise'           : 'ef798a f7a9a8 ffd289 facc6b fb8131',
+        'Sky and Sun'       : '007bb6 04b6f0 ffbc42 d84239 fa7d16',
         'Deco Pool'         : '247ba0 70c1b3 b2dbbf e3efbd e1b694',
-        'Bright Toy'        : '5bc0eb dd472c 9bc53d e5d934 fa7921',
+        'Bright Toy'        : '5bc0eb dd472c 9bc53d e5e934 fa7921',
         'Grapevine'         : '6d61ab 848bbe 708b75 9ab87a a8d991',
-        'Cold to Hot'       : '437f97 72b5d3 84b344 f5b30f cd451b',
+        'Cold to Hot'       : '72b5d3 336fca 64a334 f5b30f cd451b',
         'Warmth Scale'      : 'dad58f e9b45a f4a261 f76f51 f93211',
         'Ocean View'        : '06aed5 086788 f0c808 dfd1c0 edac1a',
         'Make Up'           : 'e8d2cc ffe5d9 ffcad4 f4acb7 9d8189',
@@ -1367,6 +1367,8 @@ class Interface(QtCore.QObject):
             return
         colors = Interface.color_schemes[scheme]
         if not colors:
+            if self.config:
+                self.colors = [ alloc_color(item) for item in self.config.colors ]
             return
         new_colors = parse_colors(scheme, colors, ' ')
         new_colors = [alloc_color(c) for c in new_colors]

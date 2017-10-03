@@ -97,6 +97,8 @@ catalogue = [
     "ddDD dDdD dD",
     "dDc3 c-3 3C 3",
     "dD4 4-4 4a4A aA a-A",
+    "dD4 4-4 4a-A aA Aa a-A",
+    "dD4 4-4 4a4A aA Aa a-A",
     "Dd-cA d-D a-C",
     "d4-Dd d-D DD",
     "d3-3-- D-D",

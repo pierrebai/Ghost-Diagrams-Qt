@@ -76,6 +76,9 @@ import PyQt5.QtWidgets as QtWidgets
 
 catalogue = [
     "dD--4- 4--4 4a-A-4 aA a--A",
+    "13-333 33---- 3-----",
+    "3-3--3- 33-3---- 33------",
+    "4-4--4--",
     "dDdDDD ddD--- D-4---",
     "111111 11111 11--1-",
     "a2A2 A222",
@@ -1518,6 +1521,9 @@ class Interface(QtCore.QObject):
         font.setPixelSize(size)
         painter.setFont(font)
 
+    def get_color(self, i):
+        return self.colors[i % len(self.colors)]
+
     def draw_poly(self, y,x,form_number, painter, erase=False):
         id = (y,x,form_number)
 
@@ -1539,7 +1545,7 @@ class Interface(QtCore.QObject):
                 color = self.background
                 self.setPaintColors(painter, color, color)
             else:
-                color = self.colors[self.assembler.form_id[form_number] % len(self.colors)]
+                color = self.get_color(self.assembler.form_id[form_number])
 
             if self.fill:
                 if not erase:
@@ -1598,7 +1604,7 @@ class Interface(QtCore.QObject):
             self.setPaintColors(painter, self.foreground, self.background)
             x = self.draw_text(painter, x, y, padding, False, self.config.name)
         for i, form in enumerate(self.assembler.basic_forms):
-            self.setPaintColors(painter, self.foreground, self.colors[i])
+            self.setPaintColors(painter, self.foreground, self.get_color(i))
             x = self.draw_text(painter, x, y, padding, True, form)
 
     def paint_grid(self, painter):

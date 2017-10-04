@@ -1591,6 +1591,9 @@ class Interface(QtCore.QObject):
 
     def save_canvas(self):
         fn, image_format = QtWidgets.QFileDialog.getSaveFileName(self.window, "Select Destination Image", "", "Images (*.png *.jpg)")
+        self.save_canvas_into(fn)
+
+    def save_canvas_into(self, fn):
         if not fn:
             return
         image = QtGui.QImage(self.width, self.height, QtGui.QImage.Format_RGB32)
@@ -1682,35 +1685,35 @@ if __name__ == '__main__':
     app = QtWidgets.QApplication(sys.argv)
     ui = Interface()
     ui.window.show()
-    app.exec()
-    sys.exit(0)
+
+    if (len(sys.argv) < 2 or sys.argv[1] != 'phd'):
+        app.exec()
+        sys.exit(0)
 
     # Just some phd stuff...
-    interface = Interface()
-    interface.window.show_all()
 
     base = 2
-    chars = " 1"
-    n = len(connections)
+    chars = "-1"
+    n = 6
     done = { }
 
     for i in range(1, base ** n):
         result = ""
         for j in range(n):
-            result += chars[(i / (base ** j)) % base]
+            result += chars[(i // (base ** j)) % base]
         if normalize(result) in done or normalize(result.swapcase()) in done: continue
         print(result)
         done[normalize(result)] = True
 
-        interface.tilings_combo.entry.set_text("'"+result+"', width=350, height=400")
-        interface.reset()
+        ui.tilings_combo.setCurrentText(result+" width=350 height=400")
+        ui.reset()
 
-        while gtk.events_pending():
-            gtk.main_iteration()
+        while ui.timer:
+            app.processEvents()
 
-        if interface.assembler.dirty:
+        if ui.assembler.dirty:
             print("--- failed")
             continue
 
-        interface.scaled_pixbuf.save("/tmp/T" + result.replace(" ","-") + ".png", "png")
+        ui.save_canvas_into("T" + result.replace(" ","-") + ".png")
 

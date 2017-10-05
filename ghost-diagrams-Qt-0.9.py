@@ -65,7 +65,7 @@
   TODO: (blue sky) 3D, third dimension == time
 """
 
-import sys, os, random, math, functools, collections
+import sys, os, random, math, functools, collections, optparse
 import PyQt5.QtCore as QtCore
 import PyQt5.QtGui as QtGui
 import PyQt5.QtWidgets as QtWidgets
@@ -1714,33 +1714,66 @@ def seeders(n, seeds):
         else:
             yield (grown,)
 
+def parse_command_line():
+    parser = optparse.OptionParser()
+    parser.add_option('-q', '--quiet', action='store_true', dest='quiet', default=False)
+    parser.add_option('-v', '--verbose', action='store_true', dest='verbose', default=False)
+    parser.add_option('--no-ui', action='store_true', dest='no_ui', default=False)
+    parser.add_option('--max-iter', action='store', type='int', dest='max_iterations', default=10000)
+    parser.add_option('--min-tiles', action='store', type='int', dest='min_tiles', default=10)
+    parser.add_option('-c', '--connections', action='store', type='int', dest='connections', default=4)
+    parser.add_option('--width', action='store', type='int', dest='width', default=600)
+    parser.add_option('--height', action='store', type='int', dest='height', default=600)
+    return parser.parse_args()
+
 if __name__ == '__main__':
+
+    opts, args = parse_command_line()
+
     app = QtWidgets.QApplication(sys.argv)
     ui = Interface()
-    ui.window.show()
 
-    if (len(sys.argv) < 2):
+    if not args:
+        ui.window.show()
         app.exec()
         sys.exit(0)
 
     # Just some phd stuff...
 
-    connections = int(sys.argv[1])
-    seeds = sys.argv[2:]
+    if not opts.no_ui:
+        ui.window.show()
 
-    for tiles in seeders(connections, seeds):
+    ui.on_resize(QtCore.QSize(opts.width, opts.height))
+
+    for i, tiles in enumerate(seeders(opts.connections, args)):
         diagram = ' '.join(tiles)
-        print(diagram)
+
+
+        if opts.verbose:
+            print(diagram, end='')
+        elif not opts.quiet:
+            print('%s (%d)' % (diagram, i), end='\r')
 
         ui.tilings_combo.setCurrentText(diagram)
         ui.reset()
 
-        while ui.timer:
+        iterations = opts.max_iterations
+        while ui.timer and iterations > 0:
             app.processEvents()
+            iterations -= 1
 
         if ui.assembler.dirty:
-            print("--- failed")
+            if opts.verbose:
+                print(" --- failed")
             continue
+
+        if len(ui.assembler.tiles) < opts.min_tiles:
+            if opts.verbose:
+                print(" --- too simple")
+            continue
+
+        if opts.verbose:
+            print("")
 
         ui.save_canvas_into("T" + diagram.replace(" ","-") + ".png")
 

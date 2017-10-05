@@ -751,7 +751,9 @@ def showException(f):
             return f(self, *args, **kw)
         except Exception as e:
             QtWidgets.QErrorMessage(self.window).showMessage(str(e))
-            raise
+        except BaseException as e:
+            QtWidgets.QErrorMessage(self.window).showMessage(str(e))
+            sys.exit(0)
 
     return wrapper
 

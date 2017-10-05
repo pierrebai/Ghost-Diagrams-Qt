@@ -65,7 +65,7 @@
   TODO: (blue sky) 3D, third dimension == time
 """
 
-import sys, os, random, math, functools
+import sys, os, random, math, functools, collections
 import PyQt5.QtCore as QtCore
 import PyQt5.QtGui as QtGui
 import PyQt5.QtWidgets as QtWidgets
@@ -89,6 +89,11 @@ catalogue = [
     "111-1 11-1 1-11 11",
     "aa-1 A--1 1-1-",
     "aaAA-A aa--a- aAA---",
+    "4-4----- 444",
+    "4-4-4-- 444",
+    "a-3-3-A- 333----- a--A",
+    "d-DBb- c---D- d-C---",
+    "cccC CCC-",
     "DA13 d-3- a---",
     "111111 111-1- 1-1---",
     "11---1-- 1-1",
@@ -1614,9 +1619,12 @@ class Interface(QtCore.QObject):
         if self.config.name:
             self.setPaintColors(painter, self.foreground, self.background)
             x = self.draw_text(painter, x, y, padding, False, self.config.name)
+        counts = collections.defaultdict(int)
+        for i in self.assembler.tiles.values():
+            counts[self.assembler.form_id[i]] += 1
         for i, form in enumerate(self.assembler.basic_forms):
             self.setPaintColors(painter, self.foreground, self.get_color(i))
-            x = self.draw_text(painter, x, y, padding, True, form)
+            x = self.draw_text(painter, x, y, padding, True, '%s x %d' % (form, counts[i]))
 
     def paint_grid(self, painter):
         self.setPaintColors(painter, tweak_color_value(self.background), None)

@@ -1705,13 +1705,14 @@ def seeders(n, seeds):
             continue
         if other_seeds:
             for other_grown in seeders(n, other_seeds):
-                result = grown + " " + other_grown
-                if result in done or result.swapcase() in done:
+                result = tuple(sorted((grown,) + other_grown))
+                swap_result = (t.swapcase() for t in result)
+                if result in done or swap_result in done:
                     continue
                 done[result] = True
                 yield result
         else:
-            yield grown
+            yield (grown,)
 
 if __name__ == '__main__':
     app = QtWidgets.QApplication(sys.argv)
@@ -1727,7 +1728,8 @@ if __name__ == '__main__':
     connections = int(sys.argv[1])
     seeds = sys.argv[2:]
 
-    for diagram in seeders(connections, seeds):
+    for tiles in seeders(connections, seeds):
+        diagram = ' '.join(tiles)
         print(diagram)
 
         ui.tilings_combo.setCurrentText(diagram)

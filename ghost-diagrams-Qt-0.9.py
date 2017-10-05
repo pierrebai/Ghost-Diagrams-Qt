@@ -1689,31 +1689,46 @@ class Interface(QtCore.QObject):
 # Entry.
 
 
+def seeders(n, seeds):
+    seed = seeds[0]
+    other_seeds = seeds[1:]
+    base = len(seed)
+    done = { }
+    for i in range(1, base ** n):
+        grown = ""
+        for j in range(n):
+            grown += seed[(i // (base ** j)) % base]
+        grown = normalize(grown)
+        if grown in done or grown.swapcase() in done:
+            continue
+        if other_seeds:
+            for other_grown in seeders(n, other_seeds):
+                result = grown + " " + other_grown
+                if result in done or result.swapcase() in done:
+                    continue
+                done[result] = True
+                yield result
+        else:
+            yield grown
+
 if __name__ == '__main__':
     app = QtWidgets.QApplication(sys.argv)
     ui = Interface()
     ui.window.show()
 
-    if (len(sys.argv) < 2 or sys.argv[1] != 'phd'):
+    if (len(sys.argv) < 2):
         app.exec()
         sys.exit(0)
 
     # Just some phd stuff...
 
-    base = 2
-    chars = "-1"
-    n = 6
-    done = { }
+    connections = int(sys.argv[1])
+    seeds = sys.argv[2:]
 
-    for i in range(1, base ** n):
-        result = ""
-        for j in range(n):
-            result += chars[(i // (base ** j)) % base]
-        if normalize(result) in done or normalize(result.swapcase()) in done: continue
-        print(result)
-        done[normalize(result)] = True
+    for diagram in seeders(connections, seeds):
+        print(diagram)
 
-        ui.tilings_combo.setCurrentText(result+" width=350 height=400")
+        ui.tilings_combo.setCurrentText(diagram)
         ui.reset()
 
         while ui.timer:
@@ -1723,5 +1738,5 @@ if __name__ == '__main__':
             print("--- failed")
             continue
 
-        ui.save_canvas_into("T" + result.replace(" ","-") + ".png")
+        ui.save_canvas_into("T" + diagram.replace(" ","-") + ".png")
 

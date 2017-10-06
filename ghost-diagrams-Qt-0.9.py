@@ -27,8 +27,8 @@
 
   Tile set specification:
 
-     A tile set specification is a list of up to 6- or 4-character strings,
-     corrsponding to a hexagonal or square grid, respectively. For example,
+     A tile set specification is a list of up to 8-, 6- or 4-character strings,
+     corresponding to a hexagonal or square grid, respectively. For example,
      B-Aa-- b--Aa- represent two hexagonal tiles.
 
      Each character represents a tile edge. Letters (abcd, ABCD)
@@ -36,7 +36,7 @@
      Dashes represent no connection and dot match with anything.
 
      Missing characters are assumed to be dashes; the longest tile in the set
-     decides if a square of hexagonal grid is used.
+     decides if a square, hexagonal or octogonal grid is used.
 
      A tile specification can be multiplied by a number to make it
      that much likely to be selected. Multiplication by a number between
@@ -995,7 +995,6 @@ class Interface(QtCore.QObject):
         self.canvas = Canvas()
         self.canvas.painting.connect(self.on_paint)
         self.canvas.resizing.connect(self.on_resize)
-        self.canvas.resize(self.width, self.height)
         self.canvas.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
         canvas_frame = make_hbox(0, self.canvas)
         canvas_frame.setLineWidth(1)
@@ -1090,12 +1089,7 @@ class Interface(QtCore.QObject):
 
     @showException
     def on_resize(self, sz):
-        nw, nh = sz.width(), sz.height()
-        if nw == self.width and nh == self.height:
-            return
-        self.width = nw
-        self.height = nh
-        self.update_assembler()
+        self.set_size(sz.width(), sz.height())
 
     @showException
     def on_set_scale(self, value):
@@ -1242,22 +1236,28 @@ class Interface(QtCore.QObject):
         self.thickness_spin.setValue(self.thickness)
         self.update_full_canvas()
 
-    def set_size(self, sz):
-        if sz is None:
+    def set_size(self, new_width, new_height):
+        if new_width == self.width and new_height == self.height:
             return
-        self.width = sz.width()
-        self.height = sz.height()
-        self.update_full_canvas()
+        self.width = new_width
+        self.height = new_height
+        self.update_assembler()
 
+    def canvas_width(self):
+        return max(self.width, self.canvas.width())
+
+    def canvas_height(self):
+        return max(self.height, self.canvas.height())
 
     ###################################################################
     # Starting a new tiling.
 
     def update_assembler(self):
-        self.shapes = { }
-        self.polys = { }
-        self.assembler.update_point_set(self.create_point_set())
-        self.start_idling()
+        if self.assembler:
+            self.shapes = { }
+            self.polys = { }
+            self.assembler.update_point_set(self.create_point_set())
+            self.start_idling()
         self.update_full_canvas()
 
     def create_point_set(self):
@@ -1290,6 +1290,9 @@ class Interface(QtCore.QObject):
             self.config = Config("---- grid=0 background=fff foreground=f66")
             self.error = str(e)
             self.update_full_canvas()
+
+        self.set_size(self.config.width  if self.config.width  > 0 else self.canvas.width(),
+                      self.config.height if self.config.height > 0 else self.canvas.height())
 
         self.set_fill(self.config.fill)
         self.set_border(self.config.border)
@@ -1588,7 +1591,7 @@ class Interface(QtCore.QObject):
 
     def draw_text(self, painter, x, y, padding, with_rect, text):
         alignment = QtCore.Qt.AlignLeft | QtCore.Qt.AlignTop | QtCore.Qt.TextWordWrap
-        r = painter.boundingRect(x, y, self.width - x, self.height - y, alignment, text)
+        r = painter.boundingRect(x, y, self.canvas_width() - x, self.canvas_height() - y, alignment, text)
         r.adjust(-padding, -padding, padding * 2, padding * 2)
         if with_rect:
             painter.drawRect(r)
@@ -1617,7 +1620,7 @@ class Interface(QtCore.QObject):
         padding = 6
         self.setPaintFont(painter, fontSize)
         x = padding * 2
-        y = self.height - fontSize - padding * 4
+        y = self.canvas_height() - fontSize - padding * 4
         if self.config.name:
             self.setPaintColors(painter, self.foreground, self.background)
             x = self.draw_text(painter, x, y, padding, False, self.config.name)
@@ -1651,14 +1654,14 @@ class Interface(QtCore.QObject):
 
     def paint_error(self, painter):
         self.setPaintColors(painter, QtGui.QColor(0,0,0), QtGui.QColor(240,200,200))
-        painter.drawRect(0, 0, self.width, self.height)
+        painter.drawRect(0, 0, self.canvas.width(), self.canvas.height())
         self.setPaintFont(painter, 24)
-        painter.drawText(0, 0, self.width, self.height, QtCore.Qt.AlignCenter | QtCore.Qt.TextWordWrap, self.error)
+        painter.drawText(0, 0, self.canvas.width(), self.canvas.height(), QtCore.Qt.AlignCenter | QtCore.Qt.TextWordWrap, self.error)
 
     def repaint_all(self, painter):
         self.full_paint = False
         self.setPaintColors(painter, None, self.background)
-        painter.drawRect(0, 0, self.width, self.height)
+        painter.drawRect(0, 0, self.canvas_width(), self.canvas_height())
 
         if self.labels:
             self.paint_labels(painter)
@@ -1746,8 +1749,6 @@ if __name__ == '__main__':
     if not opts.no_ui:
         ui.window.show()
 
-    ui.on_resize(QtCore.QSize(opts.width, opts.height))
-
     for i, tiles in enumerate(seeders(opts.grid, args, opts.max_connections)):
         diagram = ' '.join(tiles)
 
@@ -1757,7 +1758,7 @@ if __name__ == '__main__':
         elif not opts.quiet:
             print('%s (%d)' % (diagram, i), end='\r')
 
-        ui.tilings_combo.setCurrentText(diagram)
+        ui.tilings_combo.setCurrentText("%s w=%d h=%d" % (diagram, opts.width, opts.height))
         ui.reset()
 
         iterations = opts.max_iterations

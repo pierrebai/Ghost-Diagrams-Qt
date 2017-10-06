@@ -1775,5 +1775,5 @@ if __name__ == '__main__':
         if opts.verbose:
             print("")
 
-        ui.save_canvas_into("T" + diagram.replace(" ","-") + ".png")
+        ui.save_canvas_into("T" + diagram.replace(" ","+") + ".png")
 

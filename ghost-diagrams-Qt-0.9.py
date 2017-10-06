@@ -1691,7 +1691,7 @@ class Interface(QtCore.QObject):
 # Entry.
 
 
-def seeders(n, seeds):
+def seeders(n, seeds, max_connections):
     seed = seeds[0]
     other_seeds = seeds[1:]
     base = len(seed)
@@ -1700,11 +1700,13 @@ def seeders(n, seeds):
         grown = ""
         for j in range(n):
             grown += seed[(i // (base ** j)) % base]
+        if len(grown) - grown.count('-') > max_connections:
+            continue
         grown = normalize(grown)
         if grown in done or grown.swapcase() in done:
             continue
         if other_seeds:
-            for other_grown in seeders(n, other_seeds):
+            for other_grown in seeders(n, other_seeds, max_connections):
                 result = tuple(sorted((grown,) + other_grown))
                 swap_result = (t.swapcase() for t in result)
                 if result in done or swap_result in done:
@@ -1721,7 +1723,8 @@ def parse_command_line():
     parser.add_option('--no-ui', action='store_true', dest='no_ui', default=False)
     parser.add_option('--max-iter', action='store', type='int', dest='max_iterations', default=10000)
     parser.add_option('--min-tiles', action='store', type='int', dest='min_tiles', default=10)
-    parser.add_option('-c', '--connections', action='store', type='int', dest='connections', default=4)
+    parser.add_option('--max-connections', action='store', type='int', dest='max_connections', default=1000)
+    parser.add_option('-g', '--grid', action='store', type='int', dest='grid', default=4)
     parser.add_option('--width', action='store', type='int', dest='width', default=600)
     parser.add_option('--height', action='store', type='int', dest='height', default=600)
     return parser.parse_args()
@@ -1745,7 +1748,7 @@ if __name__ == '__main__':
 
     ui.on_resize(QtCore.QSize(opts.width, opts.height))
 
-    for i, tiles in enumerate(seeders(opts.connections, args)):
+    for i, tiles in enumerate(seeders(opts.grid, args, opts.max_connections)):
         diagram = ' '.join(tiles)
 
 

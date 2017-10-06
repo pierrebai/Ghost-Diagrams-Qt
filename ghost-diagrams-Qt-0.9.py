@@ -1718,15 +1718,15 @@ def seeders(n, seeds, max_connections):
 
 def parse_command_line():
     parser = optparse.OptionParser()
-    parser.add_option('-q', '--quiet', action='store_true', dest='quiet', default=False)
-    parser.add_option('-v', '--verbose', action='store_true', dest='verbose', default=False)
-    parser.add_option('--no-ui', action='store_true', dest='no_ui', default=False)
-    parser.add_option('--max-iter', action='store', type='int', dest='max_iterations', default=10000)
-    parser.add_option('--min-tiles', action='store', type='int', dest='min_tiles', default=10)
-    parser.add_option('--max-connections', action='store', type='int', dest='max_connections', default=1000)
-    parser.add_option('-g', '--grid', action='store', type='int', dest='grid', default=4)
-    parser.add_option('--width', action='store', type='int', dest='width', default=600)
-    parser.add_option('--height', action='store', type='int', dest='height', default=600)
+    parser.add_option('-q', '--quiet', action='store_true', dest='quiet', default=False, help='be more quiet')
+    parser.add_option('-v', '--verbose', action='store_true', dest='verbose', default=False, help='be more verbose')
+    parser.add_option('--no-ui', action='store_true', dest='no_ui', default=False, help='do not open the user interface')
+    parser.add_option('--max-iter', action='store', type='int', dest='max_iterations', default=10000, help='maximum number of iteration to fill the grid before giving up')
+    parser.add_option('--min-tiles', action='store', type='int', dest='min_tiles', default=10, help='minimum number of tiles on the grid to save the result')
+    parser.add_option('-c', '--max-connections', action='store', type='int', dest='max_connections', default=1000, help='maximum number of valid connections per tile type')
+    parser.add_option('-g', '--grid', action='store', type='int', dest='grid', default=4, help='number of sides of the tiles (4, 6 or 8)')
+    parser.add_option('--width', action='store', type='int', dest='width', default=600, help='width of the image to generate and save')
+    parser.add_option('--height', action='store', type='int', dest='height', default=600, help='height of the image to generate and save')
     return parser.parse_args()
 
 if __name__ == '__main__':

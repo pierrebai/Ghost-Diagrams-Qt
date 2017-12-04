@@ -28,8 +28,8 @@
   Tile set specification:
 
      A tile set specification is a list of up to 8-, 6- or 4-character strings,
-     corresponding to a hexagonal or square grid, respectively. For example,
-     B-Aa-- b--Aa- represent two hexagonal tiles.
+     corresponding to an octogonal, hexagonal or square grid, respectively.
+     For example, B-Aa-- b--Aa- represent two hexagonal tiles.
 
      Each character represents a tile edge. Letters (abcd, ABCD)
      match with their opposite case. Numbers match with themselves.
@@ -55,7 +55,7 @@
          grid : True/False : draw a grid or not
          labels : True/False : draw labels for each tile under diagram
          name : name of the tile set
-         knot : shot knots on the tiles
+         knot : show knots on the tiles
 
      eg B-Aa-- b--Aa- width=1000 height=1000 thickness=0.5 colors=[000,000,fff,f00]
 
@@ -75,6 +75,16 @@ import PyQt5.QtWidgets as QtWidgets
 # Some cool tile sets people have found
 
 catalogue = [
+    "b33- B3-- B--3",
+    "2222 222- d-D2 D--2",
+    "c2CC cC3- c---",
+    "dDDCc- dD-d-D d-d---",
+    "2--2---- 2-2----- 2--2-2",
+    "c--c--CC cC---c-C c-----C-",
+    "d3D-3d3- D------- 3-------",
+    "a333-3A- 33--3--- 3-3-----",
+    "222-2--- 2-2-----",
+    "44444- 44--4-",
     "dD--4- 4--4 4a-A-4 aA a--A",
     "13-333 33---- 3-----",
     "3-3--3- 33-3---- 33------",
@@ -402,7 +412,7 @@ def parse_colors_array(self, name_and_synonyms, text):
     return True
 
 def parse_config(self, text):
-    """Convert the given text into the known options and ssign them to self. Return the array of text not matching options."""
+    """Convert the given text into the known options and assign them to self. Return the array of text not matching any options."""
     parsers = {
         ('knot',)             : parse_bool,
         ('border',)           : parse_bool,
@@ -906,7 +916,7 @@ class Canvas(QtWidgets.QFrame):
         self.resizing.emit(event.size())
 
 class ConfigOverrideVal:
-    """Holds a value which is user-controlled and a optional override value from Config."""
+    """Holds a value which is user-controlled and an optional override value from Config."""
 
     def __init__(self, val):
         """Starts with only a user value."""
@@ -1695,6 +1705,7 @@ class Interface(QtCore.QObject):
 
 
 def seeders(n, seeds, max_connections):
+    """Generator for a given tile set (n) with a set of possible connections (seeds)."""
     seed = seeds[0]
     other_seeds = seeds[1:]
     base = len(seed)
